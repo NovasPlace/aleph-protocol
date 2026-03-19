@@ -152,7 +152,7 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   if (strategy === "snap") effortScore = Math.min(effortScore, 1);
 
   // Reduce for latency pressure
-  if (signals.latencySensitivity === "realtime") effortScore -= 2;
+  if (signals.latencySensitivity === "realtime") effortScore -= 3;
   else if (signals.latencySensitivity === "high") effortScore -= 1;
 
   // Apply trust floor
