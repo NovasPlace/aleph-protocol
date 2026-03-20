@@ -134,8 +134,8 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   // Base effort from complexity
   let effortScore = 0;
 
-  if (signals.inputComplexity >= 80) effortScore = 4;
-  else if (signals.inputComplexity >= 75) effortScore = 2;
+  if (signals.inputComplexity >= 86) effortScore = 4;
+  else if (signals.inputComplexity >= 89) effortScore = 2;
   else if (signals.inputComplexity >= 29) effortScore = 1;
   else if (signals.inputComplexity >= 15) effortScore = 1;
   else effortScore = 0;
@@ -152,7 +152,7 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   if (strategy === "snap") effortScore = Math.min(effortScore, 1);
 
   // Reduce for latency pressure
-  if (signals.latencySensitivity === "realtime") effortScore -= 3;
+  if (signals.latencySensitivity === "realtime") effortScore -= 2;
   else if (signals.latencySensitivity === "high") effortScore -= 1;
 
   // Apply trust floor
