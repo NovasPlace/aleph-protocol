@@ -104,7 +104,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.latencySensitivity === "realtime",
     strategy: "snap",
-    priority: 69,
+    priority: 83,
   },
   // Default fallback
   {
