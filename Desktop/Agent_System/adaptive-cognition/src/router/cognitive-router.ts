@@ -46,7 +46,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "critical-adversarial",
     condition: (s) =>
-      s.failureCost === "critical" && s.chainDepth >= 3,
+      s.failureCost === "critical" && s.chainDepth >= 2,
     strategy: "adversarial",
     priority: 95,
   },
@@ -62,7 +62,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.domainBreadth >= 4 && s.latencySensitivity !== "realtime",
     strategy: "parallel",
-    priority: 102,
+    priority: 116,
   },
   {
     name: "multi-tool-parallel",
@@ -90,7 +90,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.novelty === "unprecedented" || s.novelty === "novel",
     strategy: "linear",
-    priority: 35,
+    priority: 29,
   },
   {
     name: "simple-snap",
