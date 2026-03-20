@@ -134,14 +134,14 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   // Base effort from complexity
   let effortScore = 0;
 
-  if (signals.inputComplexity >= 80) effortScore = 4;
+  if (signals.inputComplexity >= 80) effortScore = 5;
   else if (signals.inputComplexity >= 71) effortScore = 2;
   else if (signals.inputComplexity >= 29) effortScore = 1;
   else if (signals.inputComplexity >= 15) effortScore = 1;
   else effortScore = 0;
 
   // Bump for high failure cost
-  if (signals.failureCost === "catastrophic") effortScore += 3;
+  if (signals.failureCost === "catastrophic") effortScore += 4;
   else if (signals.failureCost === "critical") effortScore += 1;
 
   // Bump for deep chains
