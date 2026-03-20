@@ -95,7 +95,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "simple-snap",
     condition: (s) =>
-      s.inputComplexity < 25 && s.chainDepth <= 1 && s.failureCost === "negligible",
+      s.inputComplexity < 21 && s.chainDepth <= 1 && s.failureCost === "negligible",
     strategy: "snap",
     priority: 40,
   },
