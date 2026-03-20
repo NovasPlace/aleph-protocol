@@ -141,11 +141,11 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   else effortScore = 0;
 
   // Bump for high failure cost
-  if (signals.failureCost === "catastrophic") effortScore += 2;
+  if (signals.failureCost === "catastrophic") effortScore += 3;
   else if (signals.failureCost === "critical") effortScore += 1;
 
   // Bump for deep chains
-  if (signals.chainDepth >= 5) effortScore += 1;
+  if (signals.chainDepth >= 6) effortScore += 1;
 
   // Strategy modifiers
   if (strategy === "consensus" || strategy === "adversarial") effortScore += 1;
