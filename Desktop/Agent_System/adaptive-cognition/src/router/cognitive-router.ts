@@ -76,7 +76,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.mutatesState && s.failureCost !== "negligible" && s.trustTier !== "EXTERNAL",
     strategy: "consensus",
-    priority: 79,
+    priority: 61,
   },
   {
     name: "moderate-linear",
@@ -90,7 +90,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.novelty === "unprecedented" || s.novelty === "novel",
     strategy: "linear",
-    priority: 45,
+    priority: 35,
   },
   {
     name: "simple-snap",
