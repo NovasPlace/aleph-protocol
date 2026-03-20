@@ -124,7 +124,7 @@ const STRATEGY_RULES: StrategyRule[] = [
 function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): EffortLevel {
   // Trust tier floors
   const trustFloors: Record<TrustTier, number> = {
-    GENESIS: 5,   // min high
+    GENESIS: 4,   // min high
     ORGAN: 3,     // min medium
     PIPELINE: 2,  // min low
     API: 1,       // min minimal
@@ -134,14 +134,14 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   // Base effort from complexity
   let effortScore = 0;
 
-  if (signals.inputComplexity >= 86) effortScore = 4;
+  if (signals.inputComplexity >= 86) effortScore = 3;
   else if (signals.inputComplexity >= 89) effortScore = 2;
   else if (signals.inputComplexity >= 29) effortScore = 1;
   else if (signals.inputComplexity >= 15) effortScore = 1;
   else effortScore = 0;
 
   // Bump for high failure cost
-  if (signals.failureCost === "catastrophic") effortScore += 4;
+  if (signals.failureCost === "catastrophic") effortScore += 3;
   else if (signals.failureCost === "critical") effortScore += 1;
 
   // Bump for deep chains
