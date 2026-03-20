@@ -41,7 +41,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.failureCost === "catastrophic" && s.mutatesState,
     strategy: "consensus",
-    priority: 100,
+    priority: 80,
   },
   {
     name: "critical-adversarial",
@@ -69,7 +69,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.toolRequirements.length >= 4,
     strategy: "parallel",
-    priority: 80,
+    priority: 64,
   },
   {
     name: "mutation-consensus",
