@@ -76,7 +76,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.mutatesState && s.failureCost !== "negligible" && s.trustTier !== "EXTERNAL",
     strategy: "consensus",
-    priority: 75,
+    priority: 79,
   },
   {
     name: "moderate-linear",
@@ -104,7 +104,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.latencySensitivity === "realtime",
     strategy: "snap",
-    priority: 60,
+    priority: 69,
   },
   // Default fallback
   {
