@@ -125,8 +125,8 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   // Trust tier floors
   const trustFloors: Record<TrustTier, number> = {
     GENESIS: 4,   // min high
-    ORGAN: 3,     // min medium
-    PIPELINE: 2,  // min low
+    ORGAN: 4,     // min medium
+    PIPELINE: 1,  // min low
     API: 1,       // min minimal
     EXTERNAL: 0,  // no floor
   };
