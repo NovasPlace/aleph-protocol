@@ -55,7 +55,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.chainDepth >= 5 && s.inputComplexity >= 60,
     strategy: "recursive",
-    priority: 107,
+    priority: 131,
   },
   {
     name: "broad-parallel",
@@ -67,7 +67,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "multi-tool-parallel",
     condition: (s) =>
-      s.toolRequirements.length >= 3,
+      s.toolRequirements.length >= 4,
     strategy: "parallel",
     priority: 80,
   },
@@ -104,7 +104,7 @@ const STRATEGY_RULES: StrategyRule[] = [
     condition: (s) =>
       s.latencySensitivity === "realtime",
     strategy: "snap",
-    priority: 83,
+    priority: 92,
   },
   // Default fallback
   {
