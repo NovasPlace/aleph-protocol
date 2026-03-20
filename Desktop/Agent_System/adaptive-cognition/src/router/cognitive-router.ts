@@ -53,7 +53,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "deep-chain-recursive",
     condition: (s) =>
-      s.chainDepth >= 5 && s.inputComplexity >= 60,
+      s.chainDepth >= 4 && s.inputComplexity >= 60,
     strategy: "recursive",
     priority: 131,
   },
