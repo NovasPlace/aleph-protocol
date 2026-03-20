@@ -134,8 +134,8 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   // Base effort from complexity
   let effortScore = 0;
 
-  if (signals.inputComplexity >= 80) effortScore = 5;
-  else if (signals.inputComplexity >= 71) effortScore = 2;
+  if (signals.inputComplexity >= 80) effortScore = 4;
+  else if (signals.inputComplexity >= 75) effortScore = 2;
   else if (signals.inputComplexity >= 29) effortScore = 1;
   else if (signals.inputComplexity >= 15) effortScore = 1;
   else effortScore = 0;
@@ -160,7 +160,7 @@ function computeEffort(signals: TaskSignals, strategy: CognitiveStrategy): Effor
   effortScore = Math.max(effortScore, floor);
 
   // Clamp and map
-  effortScore = Math.max(0, Math.min(5, effortScore));
+  effortScore = Math.max(0, Math.min(4, effortScore));
   const levels: EffortLevel[] = ["minimal", "low", "medium", "high", "max"];
   return levels[effortScore];
 }
