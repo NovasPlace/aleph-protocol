@@ -53,7 +53,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "deep-chain-recursive",
     condition: (s) =>
-      s.chainDepth >= 4 && s.inputComplexity >= 60,
+      s.chainDepth >= 4 && s.inputComplexity >= 54,
     strategy: "recursive",
     priority: 131,
   },
@@ -81,7 +81,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "moderate-linear",
     condition: (s) =>
-      s.inputComplexity >= 30 && s.chainDepth >= 2,
+      s.inputComplexity >= 30 && s.chainDepth >= 3,
     strategy: "linear",
     priority: 50,
   },
@@ -95,7 +95,7 @@ const STRATEGY_RULES: StrategyRule[] = [
   {
     name: "simple-snap",
     condition: (s) =>
-      s.inputComplexity < 21 && s.chainDepth <= 1 && s.failureCost === "negligible",
+      s.inputComplexity < 17 && s.chainDepth <= 1 && s.failureCost === "negligible",
     strategy: "snap",
     priority: 40,
   },
