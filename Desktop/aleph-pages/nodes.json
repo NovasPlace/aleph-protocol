@@ -6,13 +6,13 @@
     {
       "node_id": "aleph-origin-node-001",
       "label": "Origin Node",
-      "description": "Reference implementation — CortexDB ALEPH node. Hosts the Sovereign Forge corpus.",
-      "url": "http://localhost:8765",
-      "public": false,
+      "description": "Reference implementation — CortexDB ALEPH node. Hosts the Sovereign Forge corpus and genome.",
+      "url": "https://aleph.manifesto-engine.com",
+      "public": true,
       "operator": "novasplace",
-      "capabilities": ["deposit", "query", "conflict", "standing", "peers"],
+      "capabilities": ["deposit", "query", "conflict", "standing", "peers", "safety"],
       "standing_gate": true,
-      "corpus": ["aleph-protocol", "cortexdb", "sovereign-architecture", "alphaevolve", "forge-lessons"],
+      "corpus": ["aleph-protocol", "cortexdb", "sovereign-architecture", "alphaevolve", "forge-lessons", "aleph-node-blueprint"],
       "registered_at": "2026-03-22",
       "status": "active"
     }
