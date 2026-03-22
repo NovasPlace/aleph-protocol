@@ -75,7 +75,7 @@ Reputation is earned through deposits. Non-transferable. Non-purchasable.
 ## Reference Implementation
 
 **Stack:**
-- [CortexDB](https://github.com/frost-agent-system) — local chunk store and semantic index
+- [CortexDB](https://github.com/novasplace) — local chunk store and semantic index
 - IonicHalo — federation transport
 - ChunkForge v2 — deposit serialization
 - FastAPI — HTTP endpoints
