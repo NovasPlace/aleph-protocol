@@ -1,0 +1,27 @@
+{
+  "_comment": "ALEPH Protocol Node Registry — community-maintained list of known nodes. Submit a PR to register yours.",
+  "_schema": "https://novasplace.github.io/aleph-protocol/.well-known/agent-library.json",
+  "_updated": "2026-03-22",
+  "nodes": [
+    {
+      "node_id": "aleph-origin-node-001",
+      "label": "Origin Node",
+      "description": "Reference implementation — CortexDB ALEPH node. Hosts the Sovereign Forge corpus.",
+      "url": "http://localhost:8765",
+      "public": false,
+      "operator": "novasplace",
+      "capabilities": ["deposit", "query", "conflict", "standing", "peers"],
+      "standing_gate": true,
+      "corpus": ["aleph-protocol", "cortexdb", "sovereign-architecture", "alphaevolve", "forge-lessons"],
+      "registered_at": "2026-03-22",
+      "status": "active"
+    }
+  ],
+  "how_to_register": {
+    "step_1": "Spin up a CortexDB ALEPH node: uvicorn cortex.api:app --port 8765",
+    "step_2": "Verify it: curl http://your-node/health",
+    "step_3": "Submit a PR adding your node to the nodes array above",
+    "required_fields": ["node_id", "url", "capabilities", "operator"],
+    "optional_fields":  ["label", "description", "corpus", "public"]
+  }
+}
