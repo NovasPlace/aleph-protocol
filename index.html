@@ -182,6 +182,41 @@
       transform: translateY(-2px);
     }
 
+    /* Network Stats */
+    .network-stats {
+      display: flex; gap: 1.5rem; justify-content: center; margin-top: 4rem; flex-wrap: wrap;
+    }
+    .stat-box {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      min-width: 140px;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .stat-box:hover {
+      transform: translateY(-5px);
+      border-color: var(--border-glow);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
     /* Premium Terminal Code Block */
     .code-window {
       max-width: 700px;
@@ -366,6 +401,21 @@
         <a href="spec.html" class="btn btn-secondary">Read the Spec</a>
       </div>
 
+      <div class="network-stats">
+        <div class="stat-box">
+          <div class="stat-value" id="stat-active">1</div>
+          <div class="stat-label">Active Nodes</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-nomadic">2</div>
+          <div class="stat-label">Nomadic Nodes</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-ops">1</div>
+          <div class="stat-label">Operators</div>
+        </div>
+      </div>
+
       <div class="code-window">
         <div class="code-header">
           <div class="mac-dots"><span></span><span></span><span></span></div>
@@ -433,5 +483,33 @@ registry = json.loads(urllib.request.urlopen(<br>
     </div>
   </footer>
 
+  <script>
+    async function updateNetworkStats() {
+      try {
+        const response = await fetch('nodes.json');
+        if (!response.ok) return;
+        const data = await response.json();
+        const nodes = data.nodes || [];
+        
+        let activeCount = 0;
+        let nomadicCount = 0;
+        const operators = new Set();
+        
+        nodes.forEach(node => {
+          if (node.status === 'active') activeCount++;
+          if (node.status === 'nomadic' || node.status === 'offline') nomadicCount++;
+          if (node.operator) operators.add(node.operator);
+        });
+        
+        document.getElementById('stat-active').textContent = activeCount;
+        document.getElementById('stat-nomadic').textContent = nomadicCount;
+        document.getElementById('stat-ops').textContent = operators.size;
+      } catch (error) {
+        console.error("Network stats unavailable:", error);
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', updateNetworkStats);
+  </script>
 </body>
 </html>
