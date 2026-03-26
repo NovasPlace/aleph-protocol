@@ -227,34 +227,71 @@ for node in registry["nodes"]:
     </div>
   `).join('');
 
-  // Ping each node's discovery endpoint
+  // Ping each node's discovery endpoint, pull live manifest data if reachable
   nodes.forEach(async (n, i) => {
     const badge = document.getElementById(`badge-${i}`);
     const dot   = document.getElementById(`dot-${i}`);
     const card  = document.getElementById(`card-${i}`);
-    if (!n.url) {
-      setStatus(badge, dot, card, 'private');
-      return;
-    }
+    if (!n.url) { setStatus(badge, dot, card, 'private', null); return; }
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 7000);
       const res = await fetch(`${n.url}/.well-known/agent-library.json`, {
         signal: controller.signal, mode: 'cors'
       });
       clearTimeout(timeout);
-      if (res.ok) setStatus(badge, dot, card, 'live');
-      else setStatus(badge, dot, card, 'down');
+      if (res.ok) {
+        const manifest = await res.json();
+        setStatus(badge, dot, card, 'live', manifest);
+        enrichCard(card, i, manifest);
+      } else {
+        setStatus(badge, dot, card, 'down', null);
+      }
     } catch {
-      setStatus(badge, dot, card, 'down');
+      setStatus(badge, dot, card, 'down', null);
     }
   });
 
-  function setStatus(badge, dot, card, state) {
+  function enrichCard(card, i, m) {
+    // Override label with live value
+    const lbl = card.querySelector('.node-label');
+    if (lbl && m.label) lbl.textContent = m.label;
+
+    // Override description with live value
+    const desc = card.querySelector('.node-desc');
+    if (desc && m.description) desc.textContent = m.description;
+
+    // Inject live stats row
+    const meta = card.querySelector('.node-meta');
+    if (meta && m.reputation_balance !== undefined) {
+      const rep = document.createElement('div');
+      rep.className = 'meta-item';
+      rep.innerHTML = `
+        <span class="meta-key">Reputation</span>
+        <span class="meta-val" style="color:var(--accent);font-weight:600">${m.reputation_balance} ◆ live</span>`;
+      meta.prepend(rep);
+    }
+
+    // Timestamp
+    const ts = document.createElement('div');
+    ts.className = 'meta-item';
+    ts.innerHTML = `
+      <span class="meta-key">Last Seen</span>
+      <span class="meta-val">${new Date().toUTCString().replace(' GMT','Z')}</span>`;
+    if (meta) meta.appendChild(ts);
+
+    // Override caps with live capabilities
+    const caps = card.querySelector('.caps');
+    if (caps && m.capabilities?.length) {
+      caps.innerHTML = m.capabilities.map(c => `<span class="cap">${esc(c)}</span>`).join('');
+    }
+  }
+
+  function setStatus(badge, dot, card, state, manifest) {
     const map = {
-      live:    { label: 'live',    cls: 'active', dotCls: 'live',     cardCls: 'live' },
-      down:    { label: 'unreachable', cls: 'down', dotCls: 'down',   cardCls: 'down' },
-      private: { label: 'private', cls: 'active', dotCls: 'checking', cardCls: '' },
+      live:    { label: 'live',         cls: 'active', dotCls: 'live',     cardCls: 'live' },
+      down:    { label: 'unreachable',  cls: 'down',   dotCls: 'down',     cardCls: 'down' },
+      private: { label: 'private',      cls: 'active', dotCls: 'checking', cardCls: ''     },
     };
     const s = map[state] || map.down;
     badge.textContent = s.label;
