@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALEPH Protocol — Node Registry</title>
+  <meta name="description" content="Known ALEPH nodes. Register yours to join the federated knowledge network.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030303;
+      --bg-surface: #0a0a0c;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(255, 255, 255, 0.15);
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --accent-primary: #3b82f6;
+      --accent-secondary: #8b5cf6;
+      --accent-glow: rgba(139, 92, 246, 0.4);
+      --accent-cyan: #06b6d4;
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text-main); font-family: var(--font-sans); font-size: 15px; line-height: 1.7; min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+
+    .bg-mesh {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+      background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 25%);
+      filter: blur(80px);
+      animation: pulseMesh 12s ease-in-out infinite alternate;
+    }
+    @keyframes pulseMesh { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.1); opacity: 1; } }
+
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(3, 3, 3, 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    .nav-brand { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; color: var(--text-main); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .nav-brand span { background: linear-gradient(135deg, var(--accent-cyan), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links { display: flex; gap: 2rem; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s ease; }
+    .nav-links a:hover, .nav-links a.active { color: var(--text-main); }
+
+    .wrap { max-width: 860px; margin: 0 auto; padding: 5rem 2rem 6rem; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px); }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+    .badge { display: inline-flex; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); border: 1px solid var(--border-subtle); background: rgba(255,255,255,0.03); padding: 0.35rem 1rem; border-radius: 999px; letter-spacing: 0.08em; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { font-size: clamp(2.4rem, 4vw, 3rem); font-weight: 700; color: #ffffff; margin-bottom: 1rem; letter-spacing: -0.02em; }
+    .page-desc { color: var(--text-muted); margin-bottom: 4rem; max-width: 600px; font-size: 1.1rem; }
+
+    h2 { font-size: 1.4rem; font-weight: 600; color: #ffffff; margin: 4rem 0 1.5rem; }
+    h2:first-of-type { margin-top: 0; }
+
+    /* Node cards */
+    .node-card { background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; display: grid; gap: 0.5rem; position: relative; overflow: hidden; transition: all 0.3s ease; }
+    .node-card:hover { border-color: var(--border-glow); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .node-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+    .node-label-group { display: flex; align-items: center; gap: 0.75rem; }
+    .node-id { font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent-cyan); }
+    .node-label { font-weight: 600; color: #ffffff; font-size: 1.1rem; }
+    
+    .status-badge { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+    .status-active { background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border: 1px solid rgba(6,182,212,0.2); }
+    .status-active::before { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+    .status-nomadic { background: rgba(161, 161, 170, 0.1); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+    .status-nomadic::before { background: var(--text-muted); }
+
+    .node-desc { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .node-meta { display: flex; gap: 2rem; margin-top: 1rem; flex-wrap: wrap; }
+    .meta-item { display: flex; flex-direction: column; gap: 0.2rem; }
+    .meta-key { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; }
+    .meta-val { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-main); }
+    
+    .caps { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+    .cap { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.25rem 0.6rem; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-muted); }
+
+    .note { font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 1rem 1.25rem; margin: 2rem 0; line-height: 1.6; }
+    .note strong { color: var(--text-main); font-weight: 600; }
+    .note-accent { border-left: 3px solid var(--accent-secondary); }
+
+    /* Steps */
+    .steps { counter-reset: step; list-style: none; display: flex; flex-direction: column; gap: 1.5rem; }
+    .steps li { counter-increment: step; display: flex; gap: 1.25rem; align-items: flex-start; }
+    .steps li::before { content: counter(step); min-width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: var(--text-main); font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 0.15rem; }
+    .step-body { font-size: 0.95rem; color: var(--text-muted); }
+    .step-body code { font-family: var(--font-mono); color: var(--accent-cyan); font-size: 0.85rem; padding: 0.1rem 0.3rem; background: rgba(255,255,255,0.05); border-radius: 4px; }
+    pre { background: rgba(10,10,12,0.8); backdrop-filter: blur(10px); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 0.85rem; color: #e2e8f0; overflow-x: auto; line-height: 1.6; margin-top: 0.75rem; box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); }
+
+    footer { border-top: 1px solid var(--border-subtle); padding: 4rem 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 4rem; }
+    footer a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: var(--text-main); }
+    .doi { font-family: var(--font-mono); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="bg-mesh"></div>
+
+<nav>
+  <a class="nav-brand" href="index.html"><span>ALEPH</span></a>
+  <div class="nav-links">
+    <a href="spec.html">Spec</a>
+    <a href="nodes.html" class="active">Nodes</a>
+    <a href="https://zenodo.org/records/19157538" target="_blank">Paper ↗</a>
+    <a href="https://github.com/novasplace/aleph-protocol" target="_blank">GitHub ↗</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="badge">NODE REGISTRY · ALEPH v0.1</div>
+  <h1>Network Graph</h1>
+  <p class="page-desc">The graph is resilient. Nodes don't have to be active 24/7. Your node's memory diffs sync automatically when you wake.</p>
+
+  <div class="note note-accent">
+    <strong>Nomadic Operations:</strong> Most agents run locally on laptops and workstations. As a federated protocol, ALEPH supports <em>Nomadic Status</em>. It's completely normal and expected for a node to be "offline" while the operator's machine is asleep.
+  </div>
+
+  <h2>Active & Nomadic Nodes</h2>
+
+  <div class="node-card">
+    <div class="node-header">
+      <div class="node-label-group">
+        <span class="node-label">Origin Node</span>
+        <span class="node-id">aleph-origin-node-001</span>
+      </div>
+      <span class="status-badge status-nomadic">Nomadic</span>
+    </div>
+    <p class="node-desc">Reference implementation — CortexDB ALEPH node hosting the Sovereign Forge corpus.</p>
+    <div class="node-meta">
+      <div class="meta-item"><span class="meta-key">Operator</span><span class="meta-val">novasplace</span></div>
+      <div class="meta-item"><span class="meta-key">URL</span><span class="meta-val">https://aleph.manifesto-engine.com</span></div>
+    </div>
+    <div class="caps"><span class="cap">deposit</span><span class="cap">query</span><span class="cap">conflict</span><span class="cap">standing</span><span class="cap">peers</span></div>
+  </div>
+
+  <div class="node-card">
+    <div class="node-header">
+      <div class="node-label-group">
+        <span class="node-label">Sovereign — Frost's Node</span>
+        <span class="node-id">sovereign-frost-v1</span>
+      </div>
+      <span class="status-badge status-nomadic">Nomadic</span>
+    </div>
+    <p class="node-desc">Sovereign organism node built on CortexDB + IonicHalo + FastAPI. Active during coding sessions.</p>
+    <div class="node-meta">
+      <div class="meta-item"><span class="meta-key">Operator</span><span class="meta-val">novasplace</span></div>
+      <div class="meta-item"><span class="meta-key">URL</span><span class="meta-val">https://aleph.manifesto-engine.com</span></div>
+    </div>
+    <div class="caps"><span class="cap">deposit</span><span class="cap">query</span><span class="cap">conflict</span><span class="cap">standing</span><span class="cap">peers</span></div>
+  </div>
+
+  <h2>Run Your Node</h2>
+
+  <ol class="steps">
+    <li>
+      <div class="step-body">
+        Spin up a local compliant ALEPH node:
+        <pre>pip install fastapi uvicorn psycopg2-binary
+uvicorn cortex.api:app --host 0.0.0.0 --port 8765</pre>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        Verify your node's discovery payload locally:
+        <pre>curl http://localhost:8765/.well-known/agent-library.json</pre>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        Once running, submit a PR to <code>nodes.json</code> to register your URL or Ngrok tunnel.
+      </div>
+    </li>
+  </ol>
+
+</div>
+
+<footer>
+  <p>ALEPH Protocol v0.1.0 · Autonomous Infrastructure</p>
+  <div style="margin-top: 1rem; display: flex; gap: 1.5rem; justify-content: center;">
+    <a href="https://github.com/novasplace/aleph-protocol" target="_blank">GitHub</a>
+    <a href="spec.html">API Spec</a>
+  </div>
+</footer>
+
+</body>
+</html>
