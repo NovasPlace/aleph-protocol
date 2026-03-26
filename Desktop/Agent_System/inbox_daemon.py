@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """inbox_daemon.py — Autonomous file watcher for ~/Desktop/Inbox/Input/.
 
-Watches for new .txt files, debounces writes, then feeds each intent
-through the intent pipeline (blueprint → CortexDB → code fabrication).
+Watches for new .txt, .md, and .pdf files, debounces writes, then feeds
+each intent through the intent pipeline (blueprint → CortexDB → code fabrication).
 
-Zero dependencies beyond the standard library + intent_pipeline.py.
+PDF text extraction uses pdftotext (poppler-utils).
+Zero Python dependencies beyond the standard library + intent_pipeline.py.
 
 Usage:
     python inbox_daemon.py              # foreground
@@ -16,7 +17,9 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -34,6 +37,7 @@ from intent_pipeline import process_file, sweep_inbox, INPUT_DIR, DONE_DIR, OUTP
 
 POLL_INTERVAL = float(os.environ.get("INBOX_POLL_INTERVAL", "3.0"))
 DEBOUNCE_SECONDS = float(os.environ.get("INBOX_DEBOUNCE", "2.0"))
+ACCEPTED_EXTENSIONS = {".txt", ".md", ".pdf"}
 SKIP_PREFIXES = ("Agent_letter", ".", "_")
 
 log = logging.getLogger("inbox-daemon")
@@ -52,12 +56,50 @@ def _signal_handler(sig, frame):
 
 def _should_skip(filepath: Path) -> bool:
     """Check if a file should be skipped."""
-    if not filepath.suffix == ".txt":
+    if filepath.suffix.lower() not in ACCEPTED_EXTENSIONS:
         return True
     for prefix in SKIP_PREFIXES:
         if filepath.name.startswith(prefix):
             return True
     return False
+
+
+def _extract_text(filepath: Path) -> str | None:
+    """Extract text content from .txt, .md, or .pdf files.
+
+    Returns the extracted text or None on failure.
+    """
+    ext = filepath.suffix.lower()
+
+    if ext in (".txt", ".md"):
+        try:
+            return filepath.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError as e:
+            log.error("[Daemon] Failed to read %s: %s", filepath.name, e)
+            return None
+
+    if ext == ".pdf":
+        try:
+            result = subprocess.run(
+                ["pdftotext", "-layout", str(filepath), "-"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                log.error("[Daemon] pdftotext failed on %s: %s", filepath.name, result.stderr)
+                return None
+            text = result.stdout.strip()
+            if not text:
+                log.warning("[Daemon] pdftotext returned empty output for %s", filepath.name)
+                return None
+            return text
+        except FileNotFoundError:
+            log.error("[Daemon] pdftotext not installed — install poppler-utils")
+            return None
+        except subprocess.TimeoutExpired:
+            log.error("[Daemon] pdftotext timed out on %s", filepath.name)
+            return None
+
+    return None
 
 
 def _is_stable(filepath: Path) -> bool:
@@ -78,11 +120,30 @@ def _is_stable(filepath: Path) -> bool:
 
 
 def _process_and_move(filepath: Path) -> None:
-    """Process a single intent file and move to Done/ on success."""
+    """Process a single intent file and move to Done/ on success.
+
+    For .md and .pdf files, extracts text and writes a temporary .txt
+    file for the pipeline, then cleans up.
+    """
     log.info("[Daemon] ⚡ Processing: %s", filepath.name)
 
+    # For non-.txt files, extract text into a temp .txt for the pipeline
+    temp_txt = None
+    pipeline_input = filepath
+
+    if filepath.suffix.lower() != ".txt":
+        text = _extract_text(filepath)
+        if not text:
+            log.error("[Daemon] Text extraction failed for %s — skipping", filepath.name)
+            return
+        # Write extracted text to a temp file in Input/
+        temp_txt = INPUT_DIR / f".tmp_{filepath.stem}.txt"
+        temp_txt.write_text(text, encoding="utf-8")
+        pipeline_input = temp_txt
+        log.info("[Daemon] Extracted %d chars from %s", len(text), filepath.name)
+
     try:
-        result = process_file(filepath)
+        result = process_file(pipeline_input)
     except Exception as e:
         log.error("[Daemon] Pipeline crashed on %s: %s", filepath.name, e)
         # Write error to Output/ so operator can see what happened
@@ -112,18 +173,25 @@ def _process_and_move(filepath: Path) -> None:
         log.info("[Daemon] ✅ %s → Done/", filepath.name)
     except OSError as e:
         log.error("[Daemon] Failed to move %s to Done/: %s", filepath.name, e)
+    finally:
+        # Clean up temp file if we created one
+        if temp_txt and temp_txt.exists():
+            temp_txt.unlink()
 
 
 def _scan_once() -> int:
-    """Scan Input/ once, process any new .txt files. Returns count processed."""
+    """Scan Input/ once, process any new files. Returns count processed."""
     count = 0
     try:
-        txt_files = sorted(INPUT_DIR.glob("*.txt"))
+        all_files = []
+        for ext in ACCEPTED_EXTENSIONS:
+            all_files.extend(INPUT_DIR.glob(f"*{ext}"))
+        all_files.sort()
     except OSError as e:
         log.error("[Daemon] Failed to scan %s: %s", INPUT_DIR, e)
         return 0
 
-    for filepath in txt_files:
+    for filepath in all_files:
         if _should_skip(filepath):
             continue
         if filepath.name in _processed:
