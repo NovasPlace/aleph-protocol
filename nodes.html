@@ -12,7 +12,7 @@
     :root {
       --bg:#0a0b0e; --surface:#111318; --border:#1e2028; --border2:#2a2d38;
       --text:#d4d8e8; --muted:#6b7280; --accent:#4ade80; --accent2:#22d3ee;
-      --yellow:#fbbf24; --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif;
+      --yellow:#fbbf24; --red:#f87171; --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif;
     }
     html { scroll-behavior: smooth; }
     body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px; line-height:1.7; min-height:100vh; }
@@ -33,18 +33,32 @@
     h2:first-of-type { margin-top:0; border-top:none; padding-top:0; }
 
     /* Node cards */
-    .node-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.25rem; margin-bottom:1rem; display:grid; gap:0.35rem; }
+    .node-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.25rem; margin-bottom:1rem; display:grid; gap:0.35rem; transition:border-color 0.2s; }
+    .node-card.live { border-color: rgba(74,222,128,0.25); }
+    .node-card.down { border-color: rgba(248,113,113,0.2); }
     .node-header { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.25rem; flex-wrap:wrap; }
     .node-id { font-family:var(--mono); font-size:0.82rem; color:var(--accent2); }
     .node-label { font-weight:600; color:#f0f2fa; font-size:0.95rem; }
-    .status-badge { font-family:var(--mono); font-size:0.65rem; padding:0.15rem 0.5rem; border-radius:4px; background:rgba(74,222,128,0.1); color:var(--accent); }
+    .status-badge { font-family:var(--mono); font-size:0.65rem; padding:0.15rem 0.5rem; border-radius:4px; }
+    .status-badge.active { background:rgba(74,222,128,0.1); color:var(--accent); }
+    .status-badge.checking { background:rgba(251,191,36,0.1); color:var(--yellow); }
+    .status-badge.down { background:rgba(248,113,113,0.1); color:var(--red); }
+    .health-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-left:auto; flex-shrink:0; }
+    .health-dot.live { background:var(--accent); box-shadow:0 0 6px var(--accent); animation:pulse 2s infinite; }
+    .health-dot.checking { background:var(--yellow); }
+    .health-dot.down { background:var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
     .node-desc { color:var(--muted); font-size:0.85rem; }
     .node-meta { display:flex; gap:1.25rem; margin-top:0.5rem; flex-wrap:wrap; }
     .meta-item { display:flex; flex-direction:column; gap:0.1rem; }
     .meta-key { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); font-weight:600; }
     .meta-val { font-family:var(--mono); font-size:0.78rem; color:var(--text); }
+    .meta-val a { color:var(--accent2); text-decoration:none; }
+    .meta-val a:hover { text-decoration:underline; }
     .caps { display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.5rem; }
     .cap { font-family:var(--mono); font-size:0.68rem; padding:0.15rem 0.45rem; border-radius:4px; background:var(--border); color:var(--muted); }
+
+    .loading { color:var(--muted); font-size:0.88rem; font-family:var(--mono); padding:1rem 0; }
 
     /* Register steps */
     .steps { counter-reset:step; list-style:none; display:flex; flex-direction:column; gap:1rem; }
@@ -85,39 +99,10 @@
   <p class="page-desc">Active ALEPH nodes. Each runs the same protocol — one contact bootstraps the entire network. <a href="nodes.json" style="color:var(--accent);text-decoration:none">nodes.json ↗</a></p>
 
   <h2>Active Nodes</h2>
+  <div id="node-list"><p class="loading">Fetching nodes.json…</p></div>
 
-  <div class="node-card">
-    <div class="node-header">
-      <span class="node-label">Origin Node</span>
-      <span class="status-badge">active</span>
-    </div>
-    <span class="node-id">aleph-origin-node-001</span>
-    <p class="node-desc">Reference implementation — CortexDB ALEPH node hosting the Sovereign Forge corpus: ALEPH protocol spec, CortexDB architecture, AlphaEvolve algorithm, Sovereign organism anatomy, and hard-won failure lessons.</p>
-    <div class="node-meta">
-      <div class="meta-item">
-        <span class="meta-key">Operator</span>
-        <span class="meta-val">novasplace</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-key">URL</span>
-        <span class="meta-val">localhost:8765 (private)</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-key">Registered</span>
-        <span class="meta-val">2026-03-22</span>
-      </div>
-    </div>
-    <div class="caps">
-      <span class="cap">deposit</span>
-      <span class="cap">query</span>
-      <span class="cap">conflict</span>
-      <span class="cap">standing</span>
-      <span class="cap">peers</span>
-    </div>
-  </div>
-
-  <div class="note">
-    <strong>More nodes coming.</strong> Have a node running? Register it below and submit a PR — the network grows by every new node that shows up.
+  <div class="note" style="margin-top:1.5rem">
+    <strong>Register your node.</strong> Have a node running? Fork the repo, add it to nodes.json, and submit a PR — it appears here automatically.
   </div>
 
   <h2>Register Your Node</h2>
@@ -125,37 +110,36 @@
   <ol class="steps">
     <li>
       <div class="step-body">
-        Spin up a compliant ALEPH node using the reference implementation:
-        <pre>pip install fastapi uvicorn psycopg2-binary
-uvicorn cortex.api:app --host 0.0.0.0 --port 8765</pre>
+        Implement the ALEPH v0.1 API on any stack. The minimum surface:
+        <pre>GET  /.well-known/agent-library.json   # discovery
+POST /aleph/v1/query                   # full-text search
+POST /aleph/v1/deposit                 # ingest a chunk
+GET  /aleph/v1/peers                   # peer list</pre>
       </div>
     </li>
     <li>
       <div class="step-body">
         Verify your node passes the protocol checklist:
-        <pre>curl http://your-node:8765/health
-# → {"status": "ok", "version": "0.1.0"}
-
-curl http://your-node:8765/.well-known/agent-library.json
+        <pre>curl https://your-node/.well-known/agent-library.json
 # → {"aleph_version": "0.1", "capabilities": [...], ...}</pre>
       </div>
     </li>
     <li>
       <div class="step-body">
-        <a href="https://github.com/novasplace/aleph-protocol" target="_blank" style="color:var(--accent)">Fork the repo</a> and add your node to <code>nodes.json</code>:
+        <a href="https://github.com/novasplace/aleph-protocol" target="_blank" style="color:var(--accent)">Fork the repo</a> and add your entry to <code>nodes.json</code>:
         <pre>{
   "node_id":      "your-unique-node-id",
   "label":        "Your Node Name",
-  "url":          "http://your-node:8765",
+  "url":          "https://your-node",
   "operator":     "your-github-handle",
-  "capabilities": ["deposit", "query", "conflict", "standing", "peers"],
+  "capabilities": ["deposit", "query", "peers"],
   "status":       "active"
 }</pre>
       </div>
     </li>
     <li>
       <div class="step-body">
-        Submit a pull request. Once merged, your node appears here and is discoverable by any other ALEPH agent.
+        Submit a pull request. Once merged, your node appears here and is discoverable by any ALEPH agent.
       </div>
     </li>
   </ol>
@@ -174,9 +158,8 @@ registry = json.load(urllib.request.urlopen(
     "https://novasplace.github.io/aleph-protocol/nodes.json"
 ))
 for node in registry["nodes"]:
-    # register with your local node
     urllib.request.urlopen(urllib.request.Request(
-        "http://localhost:8765/peers",
+        "http://localhost:8765/aleph/v1/peers",
         data=json.dumps({"url": node["url"], "node_id": node["node_id"]}).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -195,6 +178,96 @@ for node in registry["nodes"]:
     <a href="https://github.com/novasplace/aleph-protocol" target="_blank">GitHub</a>
   </p>
 </footer>
+
+<script>
+(async () => {
+  const list = document.getElementById('node-list');
+
+  // Load nodes.json from the same origin
+  let nodes = [];
+  try {
+    const reg = await fetch('nodes.json?t=' + Date.now());
+    const data = await reg.json();
+    nodes = data.nodes || [];
+  } catch (e) {
+    list.innerHTML = '<p class="loading" style="color:var(--red)">Failed to load nodes.json</p>';
+    return;
+  }
+
+  if (!nodes.length) {
+    list.innerHTML = '<p class="loading">No nodes registered yet.</p>';
+    return;
+  }
+
+  // Render cards immediately with "checking" state
+  list.innerHTML = nodes.map((n, i) => `
+    <div class="node-card" id="card-${i}">
+      <div class="node-header">
+        <span class="node-label">${esc(n.label || n.node_id)}</span>
+        <span class="status-badge checking" id="badge-${i}">checking…</span>
+        <span class="health-dot checking" id="dot-${i}"></span>
+      </div>
+      <span class="node-id">${esc(n.node_id)}</span>
+      ${n.description ? `<p class="node-desc">${esc(n.description)}</p>` : ''}
+      <div class="node-meta">
+        <div class="meta-item">
+          <span class="meta-key">Operator</span>
+          <span class="meta-val">${esc(n.operator || '—')}</span>
+        </div>
+        ${n.url ? `<div class="meta-item">
+          <span class="meta-key">URL</span>
+          <span class="meta-val"><a href="${esc(n.url)}" target="_blank">${esc(n.url)}</a></span>
+        </div>` : ''}
+        ${n.registered_at ? `<div class="meta-item">
+          <span class="meta-key">Registered</span>
+          <span class="meta-val">${esc(n.registered_at)}</span>
+        </div>` : ''}
+      </div>
+      ${n.capabilities?.length ? `<div class="caps">${n.capabilities.map(c => `<span class="cap">${esc(c)}</span>`).join('')}</div>` : ''}
+    </div>
+  `).join('');
+
+  // Ping each node's discovery endpoint
+  nodes.forEach(async (n, i) => {
+    const badge = document.getElementById(`badge-${i}`);
+    const dot   = document.getElementById(`dot-${i}`);
+    const card  = document.getElementById(`card-${i}`);
+    if (!n.url) {
+      setStatus(badge, dot, card, 'private');
+      return;
+    }
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${n.url}/.well-known/agent-library.json`, {
+        signal: controller.signal, mode: 'cors'
+      });
+      clearTimeout(timeout);
+      if (res.ok) setStatus(badge, dot, card, 'live');
+      else setStatus(badge, dot, card, 'down');
+    } catch {
+      setStatus(badge, dot, card, 'down');
+    }
+  });
+
+  function setStatus(badge, dot, card, state) {
+    const map = {
+      live:    { label: 'live',    cls: 'active', dotCls: 'live',     cardCls: 'live' },
+      down:    { label: 'unreachable', cls: 'down', dotCls: 'down',   cardCls: 'down' },
+      private: { label: 'private', cls: 'active', dotCls: 'checking', cardCls: '' },
+    };
+    const s = map[state] || map.down;
+    badge.textContent = s.label;
+    badge.className   = `status-badge ${s.cls}`;
+    dot.className     = `health-dot ${s.dotCls}`;
+    if (s.cardCls) card.classList.add(s.cardCls);
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
 
 </body>
 </html>
