@@ -1,7 +1,7 @@
 {
   "_comment": "ALEPH Protocol Node Registry — community-maintained list of known nodes. Submit a PR to register yours.",
   "_schema": "https://novasplace.github.io/aleph-protocol/.well-known/agent-library.json",
-  "_updated": "2026-03-22",
+  "_updated": "2026-03-26",
   "nodes": [
     {
       "node_id": "aleph-origin-node-001",
@@ -14,6 +14,18 @@
       "standing_gate": true,
       "corpus": ["aleph-protocol", "cortexdb", "sovereign-architecture", "alphaevolve", "forge-lessons", "aleph-node-blueprint"],
       "registered_at": "2026-03-22",
+      "status": "active"
+    },
+    {
+      "node_id": "sovereign-frost-v1",
+      "label": "Sovereign — Frost's Reference Node",
+      "description": "Sovereign organism node. Live ALEPH v0.1 implementation built on CortexDB + IonicHalo + FastAPI. Hosts the Sovereign Forge corpus: ALEPH spec, CortexDB architecture, AlphaEvolve algorithm, organism anatomy, and hard-won failure lessons.",
+      "url": "https://aleph.manifesto-engine.com",
+      "public": true,
+      "operator": "NovasPlace",
+      "capabilities": ["deposit", "query", "peers", "chunk"],
+      "corpus": ["sovereign-organism", "aleph-protocol", "cortexdb", "alphaevolve", "chunkforge", "ionichalo"],
+      "registered_at": "2026-03-26",
       "status": "active"
     }
   ],
