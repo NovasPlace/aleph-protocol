@@ -9,17 +9,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f0f0f;
-      --bg-surface: #212121;
-      --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-glow: rgba(255, 255, 255, 0.15);
-      --text-main: #f1f1f1;
-      --text-muted: #aaaaaa;
-      --text-warm: #cccccc;
-      --accent-primary: #ff0000;
-      --accent-secondary: #e1306c;
-      --accent-orange: #f56040;
-      --accent-glow: rgba(225, 48, 108, 0.4);
+      --bg-color: #121614; /* Deep forest/slate darkness */
+      --text-main: #e6efe8; /* Soft cloud white */
+      --text-muted: #94a39a; /* Sage gray */
+      --border-subtle: rgba(184, 212, 212, 0.1);
+
+      --accent-primary: #6eb883;   /* Moss green */
+      --accent-secondary: #b8d4d4; /* Cloud blue */
+      --accent-orange: #d67b52;    /* Terracotta earth */
+
       --font-sans: 'Inter', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
@@ -424,8 +422,8 @@ node.synchronize()<br><br>
     window.addEventListener('resize', initGraph);
     initGraph();
 
-    const lineC = 'rgba(225, 48, 108, 0.2)';  // IG Pink
-    const meshLineC = 'rgba(245, 96, 64, 0.15)'; // IG Orange
+    const lineC = 'rgba(110, 184, 131, 0.25)';  // Moss Green
+    const meshLineC = 'rgba(214, 123, 82, 0.2)'; // Terracotta
     const hud = document.getElementById('hud-info');
 
     let hovered = null;
@@ -451,21 +449,21 @@ node.synchronize()<br><br>
       const pr = h.r + pulsing;
 
       ctx.shadowBlur = 25 * glow;
-      ctx.shadowColor = '#e1306c';
+      ctx.shadowColor = '#6eb883';
       
       // Outer hex
       hexagon(h.x, h.y, pr+8);
-      ctx.strokeStyle = `rgba(225, 48, 108, ${0.4 * glow})`;
+      ctx.strokeStyle = `rgba(110, 184, 131, ${0.4 * glow})`;
       ctx.lineWidth = 1; ctx.stroke();
       ctx.shadowBlur = 0;
 
       // Inner hex fill
       hexagon(h.x,h.y,pr);
       const g = ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,pr);
-      g.addColorStop(0, `rgba(225, 48, 108, ${0.4 * glow})`);
-      g.addColorStop(1, `rgba(150, 30, 70, ${0.7 * glow})`);
+      g.addColorStop(0, `rgba(110, 184, 131, ${0.4 * glow})`);
+      g.addColorStop(1, `rgba(50, 100, 70, ${0.7 * glow})`);
       ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = `rgba(225, 48, 108, ${0.9 * glow})`;
+      ctx.strokeStyle = `rgba(110, 184, 131, ${0.9 * glow})`;
       ctx.lineWidth = 1.5; ctx.stroke();
 
       // Label always visible, brighter on hover
@@ -487,9 +485,9 @@ node.synchronize()<br><br>
 
       const r = m.targetRadius || 3;
       const opacity = m.opacityTarget || 0.8;
-      ctx.shadowBlur = 8; ctx.shadowColor = '#f56040';
+      ctx.shadowBlur = 8; ctx.shadowColor = '#d67b52';
       ctx.beginPath(); ctx.arc(m.x,m.y,r,0,Math.PI*2);
-      ctx.fillStyle = `rgba(245, 96, 64, ${opacity})`; ctx.fill();
+      ctx.fillStyle = `rgba(214, 123, 82, ${opacity})`; ctx.fill();
       ctx.shadowBlur = 0;
     }
 
@@ -518,7 +516,7 @@ node.synchronize()<br><br>
           const dy = meshNodes[i].y - meshNodes[j].y;
           const dist = Math.sqrt(dx*dx + dy*dy);
           if(dist < 130) {
-            drawEdge(meshNodes[i].x, meshNodes[i].y, meshNodes[j].x, meshNodes[j].y, `rgba(245, 96, 64, ${1 - dist/130})`, 0.6);
+            drawEdge(meshNodes[i].x, meshNodes[i].y, meshNodes[j].x, meshNodes[j].y, `rgba(214, 123, 82, ${1 - dist/130})`, 0.6);
           }
         }
         // Connect mesh to nearest hub
@@ -529,7 +527,7 @@ node.synchronize()<br><br>
           if(d < minDist) { minDist = d; nearestHub = h; }
         });
         if(minDist < 250) {
-          drawEdge(meshNodes[i].x, meshNodes[i].y, nearestHub.x, nearestHub.y, `rgba(225, 48, 108, ${0.4 * (1 - minDist/250)})`, 1.0);
+          drawEdge(meshNodes[i].x, meshNodes[i].y, nearestHub.x, nearestHub.y, `rgba(110, 184, 131, ${0.4 * (1 - minDist/250)})`, 1.0);
         }
       }
 
