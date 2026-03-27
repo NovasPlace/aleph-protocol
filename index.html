@@ -328,6 +328,7 @@ node.synchronize()<br><br>
         { id: 'registry', x: W*0.65, y: H*0.22, label: 'Agent Registry', sub: 'Active nodes', r: 24, link: 'nodes.html' },
         { id: 'github', x: W*0.5, y: H*0.8, label: 'GitHub Source', sub: 'Open repository', r: 22, link: 'https://github.com/novasplace/aleph-protocol' }
       ];
+      hubs.forEach(h => h.baseY = h.y);
 
       // Generate random social mesh nodes around the hubs
       meshNodes = [];
@@ -416,6 +417,11 @@ node.synchronize()<br><br>
     function draw(t){
       ctx.clearRect(0,0,W,H); 
       
+      // Update hub Y positions for smooth floating wave
+      hubs.forEach((h, i) => {
+        h.y = h.baseY + Math.sin(t*0.02 + i) * 8;
+      });
+
       // Draw hub backbone
       drawEdge(hubs[0].x, hubs[0].y, hubs[1].x, hubs[1].y, lineC, 1.5);
       drawEdge(hubs[0].x, hubs[0].y, hubs[2].x, hubs[2].y, lineC, 1.5);
