@@ -20,6 +20,7 @@ Output:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import sys
@@ -33,9 +34,10 @@ from pathlib import Path
 _AGENT_ROOT    = Path(__file__).parent
 _GRAVITY_PATH  = _AGENT_ROOT / "gravity-mesh"
 
-CORTEXDB_URL   = os.environ.get("CORTEXDB_URL", "http://127.0.0.1:3456")
-DEFAULT_LIMIT  = 5
-TIMEOUT_S      = 10.0
+CORTEXDB_URL      = os.environ.get("CORTEXDB_URL", "http://127.0.0.1:3456")
+DEFAULT_LIMIT     = 5
+TIMEOUT_S         = 10.0   # CortexDB HTTP timeout
+GRAVITY_TIMEOUT_S = float(os.environ.get("CORTEX_GRAVITY_TIMEOUT", "3.0"))  # mesh embedding timeout
 
 
 # ── CortexDB retrieval ─────────────────────────────────────────────────────────
@@ -188,23 +190,38 @@ def build_context_block(
     query: str,
     project: str = "",
     limit: int = DEFAULT_LIMIT,
+    gravity_timeout: float = GRAVITY_TIMEOUT_S,
 ) -> str:
     """Fetch and format both CortexDB + gravity-mesh context for a query.
 
-    CortexDB is queried first (fast HTTP). Gravity-mesh runs second (needs
-    Ollama embedding — ~5-10s cold, cached after).
-    Returns a compact markdown block for injection into agent context.
+    CortexDB is always queried first (fast HTTP, ~20ms). Gravity-mesh runs
+    concurrently with a timeout — if Ollama is cold and embedding stalls,
+    we return CortexDB FTS results immediately rather than blocking.
+
+    Set CORTEX_GRAVITY_TIMEOUT env var to tune (default 3s).
     """
     t0 = time.perf_counter()
 
-    # CortexDB first — fast HTTP, no embedding needed
+    # CortexDB — fast FTS, always runs synchronously
     memories = _cortex_search(query, limit=limit)
     cortex_block = _format_cortex_memories(memories, limit)
-
     cortex_ms = (time.perf_counter() - t0) * 1000
 
-    # Gravity-mesh second — semantic embedding retrieval
-    gravity_block = _gravity_pull(query, project=project)
+    # Gravity-mesh — semantic embedding, may block on cold Ollama
+    # Run in a thread with a hard timeout. On timeout: FTS results are
+    # already in hand; mesh result arrives in next pull (warm).
+    gravity_block = ""
+    mesh_status = "unavailable"
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(_gravity_pull, query, project)
+        try:
+            gravity_block = future.result(timeout=gravity_timeout)
+            mesh_status = "ok"
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            mesh_status = f"warming (>{gravity_timeout:.0f}s) — retry when Ollama is loaded"
+        except Exception:
+            mesh_status = "error"
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
@@ -223,8 +240,10 @@ def build_context_block(
     if gravity_block:
         sections.append("")
         sections.append(gravity_block)
+    elif mesh_status.startswith("warming"):
+        sections.append(f"\n*gravity-mesh: {mesh_status}*")
     else:
-        sections.append("\n*gravity-mesh: unavailable (Ollama may be warming up)*")
+        sections.append("\n*gravity-mesh: unavailable*")
 
     return "\n".join(sections)
 
