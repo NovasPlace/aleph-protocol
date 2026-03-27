@@ -9,17 +9,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f0f0f;
-      --bg-surface: #212121;
-      --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-glow: rgba(255, 255, 255, 0.15);
-      --text-main: #f1f1f1;
-      --text-muted: #aaaaaa;
-      --text-warm: #cccccc;
-      --accent-primary: #ff0000;
-      --accent-secondary: #e1306c;
-      --accent-orange: #f56040;
-      --accent-glow: rgba(225, 48, 108, 0.4);
+      --bg-color: #121614; /* Deep forest/slate darkness */
+      --text-main: #e6efe8; /* Soft cloud white */
+      --text-muted: #94a39a; /* Sage gray */
+      --border-subtle: rgba(184, 212, 212, 0.1);
+
+      --accent-primary: #6eb883;   /* Moss green */
+      --accent-secondary: #b8d4d4; /* Cloud blue */
+      --accent-orange: #d67b52;    /* Terracotta earth */
+
       --font-sans: 'Inter', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
@@ -27,13 +25,19 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: var(--bg);
+      background-color: var(--bg-color);
       color: var(--text-main);
       font-family: var(--font-sans);
       line-height: 1.6;
       overflow: hidden; /* No scrolling, full SPA */
       -webkit-font-smoothing: antialiased;
     }
+
+    /* Custom Scrollbar for Terminal */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
 
     /* Fixed Canvas Background */
     #topology-canvas {
@@ -42,15 +46,15 @@
       width: 100vw; height: 100vh;
       z-index: 0;
       background: 
-        radial-gradient(circle at 15% 50%, rgba(225, 48, 108, 0.12), transparent 40%),
-        radial-gradient(circle at 85% 30%, rgba(245, 96, 64, 0.10), transparent 35%),
-        radial-gradient(circle at 50% 80%, rgba(255, 0, 0, 0.08), transparent 40%);
+        radial-gradient(circle at 15% 50%, rgba(110, 184, 131, 0.12), transparent 40%),
+        radial-gradient(circle at 85% 30%, rgba(214, 123, 82, 0.10), transparent 35%),
+        radial-gradient(circle at 50% 80%, rgba(184, 212, 212, 0.08), transparent 40%);
     }
 
     /* Nav overlay */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      background: rgba(15, 15, 15, 0.4);
+      background: rgba(18, 22, 20, 0.6);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-subtle);
@@ -100,7 +104,7 @@
     }
 
     .panel {
-      pointer-events: auto; /* Catch clicks inside the panel */
+      pointer-events: none; /* Let clicks pass through empty space */
       max-width: 680px;
       width: 90%;
       background: transparent;
@@ -116,6 +120,9 @@
       visibility: visible;
       z-index: 20;
       animation: panelEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards, floatPanel 8s ease-in-out infinite 0.6s;
+    }
+    .panel > * {
+      pointer-events: auto; /* Only catch clicks on actual visible elements */
     }
     @keyframes panelEntrance {
       0% { opacity: 0; transform: translateY(30px) scale(0.98); }
@@ -165,7 +172,7 @@
       gap: 0.5rem;
     }
     .btn-primary {
-      background: var(--text-main); color: var(--bg);
+      background: var(--text-main); color: var(--bg-color);
     }
     .btn-primary:hover {
       transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255,255,255,0.15);
@@ -229,6 +236,15 @@
       pointer-events: none;
       text-transform: uppercase; letter-spacing: 0.1em;
     }
+    
+    .hud-stats {
+      position: fixed; bottom: 4.5rem; right: 2.5rem;
+      font-family: var(--font-mono); font-size: 0.75rem;
+      color: var(--text-muted); z-index: 50;
+      text-align: right; pointer-events: none;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .hud-stats .stat-val { color: var(--text-main); font-weight: 600; margin-left: 8px; }
 
   </style>
 </head>
@@ -296,9 +312,37 @@ node.synchronize()<br><br>
       </div>
     </div>
 
+    <!-- QUERY TERMINAL PANEL -->
+    <div id="panel-query" class="panel">
+      <div class="panel-icon">📡</div>
+      <h1>Mesh Uplink</h1>
+      <p>Send a natural language intent or query directly to sovereign-frost-v1's CortexDB to test live network federation.</p>
+      
+      <div class="code-window" style="border-color: var(--accent-orange); max-width: 500px; margin: 0 auto 2rem auto;">
+        <div class="code-header">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <div style="margin-left:auto; font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">mesh_query.sh</div>
+        </div>
+        <div class="code-content" style="display:flex; flex-direction:column; gap:10px; text-align: left;">
+          <div style="display:flex; gap:10px; align-items:center;">
+             <span class="syntax-keyword">❯</span>
+             <input type="text" id="mesh-query-input" placeholder="e.g., What algorithms are used for AST extraction?" style="background:transparent; border:none; color:var(--text-main); font-family:var(--font-mono); font-size:14px; width:100%; outline:none;">
+          </div>
+          <button class="btn btn-secondary" onclick="submitQuery()" style="align-self:flex-start; margin-top:5px; padding: 0.4rem 1rem; font-size: 0.8rem;">Transmit</button>
+          <div id="mesh-response-box" style="margin-top:10px; color:var(--text-muted); font-size:12px; white-space:pre-wrap; display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; max-height: 250px; overflow-y: auto;"></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="activatePanel('welcome')">Close Uplink</button>
+    </div>
+
   </div>
 
   <div id="hud-info"></div>
+  <div class="hud-stats">
+    <div>ACTIVE NODES <span class="stat-val" id="stat-nodes">1</span></div>
+    <div>SYNCED MEMORIES <span class="stat-val" id="stat-memories">--</span></div>
+    <div>UNIQUE AGENTS <span class="stat-val" id="stat-agents">--</span></div>
+  </div>
   <div class="hud-hint">Click a specific node to navigate</div>
 
   <script>
@@ -326,24 +370,51 @@ node.synchronize()<br><br>
       // The core navigation hubs
       hubs = [
         { id: 'welcome', x: W*0.5, y: H*0.4, label: 'ALEPH Core', sub: 'A living network', r: 35 },
-        { id: 'query', x: W*0.5, y: H*0.6, label: 'Live Uplink', sub: 'Query the Mesh', r: 32 },
-        { id: 'startup', x: W*0.25, y: H*0.6, label: 'Start-Up Node', sub: 'Initialize agent', r: 28 },
-        { id: 'architecture', x: W*0.75, y: H*0.6, label: 'Architecture', sub: 'System design', r: 28 },
+        { id: 'query', x: W*0.5, y: H*0.72, label: 'Live Uplink', sub: 'Query the Mesh', r: 32 },
+        { id: 'startup', x: W*0.25, y: H*0.65, label: 'Start-Up Node', sub: 'Initialize agent', r: 28 },
+        { id: 'architecture', x: W*0.75, y: H*0.65, label: 'Architecture', sub: 'System design', r: 28 },
         { id: 'spec', x: W*0.35, y: H*0.22, label: 'Protocol Spec', sub: 'API Documentation', r: 24, link: 'spec.html' },
         { id: 'registry', x: W*0.65, y: H*0.22, label: 'Agent Registry', sub: 'Active nodes', r: 24, link: 'nodes.html' },
-        { id: 'github', x: W*0.5, y: H*0.8, label: 'GitHub Source', sub: 'Open repository', r: 22, link: 'https://github.com/novasplace/aleph-protocol' }
+        { id: 'github', x: W*0.5, y: H*0.88, label: 'GitHub Source', sub: 'Open repository', r: 22, link: 'https://github.com/novasplace/aleph-protocol' }
       ];
       hubs.forEach(h => h.baseY = h.y);
 
-      // Generate random social mesh nodes around the hubs
-      meshNodes = [];
-      for(let i=0; i<45; i++) {
-        meshNodes.push({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          vx: (Math.random()-0.5)*0.6,
-          vy: (Math.random()-0.5)*0.6
-        });
+      // Mesh nodes are populated dynamically by syncTopology() attached below
+      if (!window.__topology_sync_started) {
+        window.__topology_sync_started = true;
+        
+        async function syncTopology() {
+          try {
+            const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/topology');
+            if (res.ok) {
+              const data = await res.json();
+              const newMesh = [];
+              data.nodes.forEach(n => {
+                let existing = meshNodes.find(mn => mn.node_id === n.node_id);
+                if (!existing) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const radius = 100 + Math.random() * 300;
+                  existing = {
+                    node_id: n.node_id,
+                    x: W/2 + Math.cos(angle) * radius,
+                    y: H/2 + Math.sin(angle) * radius,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                  };
+                }
+                // Size nodes relative to Standing & total verified Chunks
+                existing.targetRadius = 2 + (n.standing / 10) + Math.min((n.corpus_size / 200), 10);
+                existing.status = n.status;
+                // Fade nomadic nodes that haven't heartbeated
+                existing.opacityTarget = n.status === 'nomadic' ? 0.2 : 0.8;
+                newMesh.push(existing);
+              });
+              meshNodes = newMesh;
+            }
+          } catch (err) { console.warn("Topology sync failed", err); }
+          setTimeout(syncTopology, 5000);
+        }
+        syncTopology();
       }
     }
     
@@ -351,8 +422,8 @@ node.synchronize()<br><br>
     window.addEventListener('resize', initGraph);
     initGraph();
 
-    const lineC = 'rgba(225, 48, 108, 0.2)';  // IG Pink
-    const meshLineC = 'rgba(245, 96, 64, 0.15)'; // IG Orange
+    const lineC = 'rgba(110, 184, 131, 0.25)';  // Moss Green
+    const meshLineC = 'rgba(214, 123, 82, 0.2)'; // Terracotta
     const hud = document.getElementById('hud-info');
 
     let hovered = null;
@@ -378,21 +449,21 @@ node.synchronize()<br><br>
       const pr = h.r + pulsing;
 
       ctx.shadowBlur = 25 * glow;
-      ctx.shadowColor = '#e1306c';
+      ctx.shadowColor = '#6eb883';
       
       // Outer hex
       hexagon(h.x, h.y, pr+8);
-      ctx.strokeStyle = `rgba(225, 48, 108, ${0.4 * glow})`;
+      ctx.strokeStyle = `rgba(110, 184, 131, ${0.4 * glow})`;
       ctx.lineWidth = 1; ctx.stroke();
       ctx.shadowBlur = 0;
 
       // Inner hex fill
       hexagon(h.x,h.y,pr);
       const g = ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,pr);
-      g.addColorStop(0, `rgba(225, 48, 108, ${0.4 * glow})`);
-      g.addColorStop(1, `rgba(150, 30, 70, ${0.7 * glow})`);
+      g.addColorStop(0, `rgba(110, 184, 131, ${0.4 * glow})`);
+      g.addColorStop(1, `rgba(50, 100, 70, ${0.7 * glow})`);
       ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = `rgba(225, 48, 108, ${0.9 * glow})`;
+      ctx.strokeStyle = `rgba(110, 184, 131, ${0.9 * glow})`;
       ctx.lineWidth = 1.5; ctx.stroke();
 
       // Label always visible, brighter on hover
@@ -412,10 +483,11 @@ node.synchronize()<br><br>
       if(m.x<0||m.x>W) m.vx*=-1;
       if(m.y<0||m.y>H) m.vy*=-1;
 
-      const r = 3;
-      ctx.shadowBlur = 8; ctx.shadowColor = '#f56040';
+      const r = m.targetRadius || 3;
+      const opacity = m.opacityTarget || 0.8;
+      ctx.shadowBlur = 8; ctx.shadowColor = '#d67b52';
       ctx.beginPath(); ctx.arc(m.x,m.y,r,0,Math.PI*2);
-      ctx.fillStyle = 'rgba(245, 96, 64, 0.8)'; ctx.fill();
+      ctx.fillStyle = `rgba(214, 123, 82, ${opacity})`; ctx.fill();
       ctx.shadowBlur = 0;
     }
 
@@ -444,7 +516,7 @@ node.synchronize()<br><br>
           const dy = meshNodes[i].y - meshNodes[j].y;
           const dist = Math.sqrt(dx*dx + dy*dy);
           if(dist < 130) {
-            drawEdge(meshNodes[i].x, meshNodes[i].y, meshNodes[j].x, meshNodes[j].y, `rgba(245, 96, 64, ${1 - dist/130})`, 0.6);
+            drawEdge(meshNodes[i].x, meshNodes[i].y, meshNodes[j].x, meshNodes[j].y, `rgba(214, 123, 82, ${1 - dist/130})`, 0.6);
           }
         }
         // Connect mesh to nearest hub
@@ -455,7 +527,7 @@ node.synchronize()<br><br>
           if(d < minDist) { minDist = d; nearestHub = h; }
         });
         if(minDist < 250) {
-          drawEdge(meshNodes[i].x, meshNodes[i].y, nearestHub.x, nearestHub.y, `rgba(225, 48, 108, ${0.4 * (1 - minDist/250)})`, 1.0);
+          drawEdge(meshNodes[i].x, meshNodes[i].y, nearestHub.x, nearestHub.y, `rgba(110, 184, 131, ${0.4 * (1 - minDist/250)})`, 1.0);
         }
       }
 
@@ -540,6 +612,25 @@ node.synchronize()<br><br>
         box.innerHTML = `<span style="color:var(--accent-primary)">[UPLINK FAILURE] ${err.message}</span>\n\nThe local Sovereign node may be unreachable or enforcing Standing Gate constraints.`;
       }
     }
+
+    // Fetch live network metrics
+    async function loadMeshStats() {
+      try {
+        const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/query', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: 'module agent', limit: 300 })
+        });
+        if(res.ok) {
+          const data = await res.json();
+          document.getElementById('stat-memories').innerText = data.total;
+          const agents = new Set(data.results.map(r => r.agent_id));
+          document.getElementById('stat-agents').innerText = agents.size > 0 ? agents.size : 1;
+        }
+      } catch (err) {
+        console.warn('Silent failure loading mesh stats:', err);
+      }
+    }
+    loadMeshStats();
   </script>
 </body>
 </html>
