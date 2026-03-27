@@ -238,6 +238,15 @@
       pointer-events: none;
       text-transform: uppercase; letter-spacing: 0.1em;
     }
+    
+    .hud-stats {
+      position: fixed; bottom: 4.5rem; right: 2.5rem;
+      font-family: var(--font-mono); font-size: 0.75rem;
+      color: var(--text-muted); z-index: 50;
+      text-align: right; pointer-events: none;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .hud-stats .stat-val { color: var(--text-main); font-weight: 600; margin-left: 8px; }
 
   </style>
 </head>
@@ -331,6 +340,11 @@ node.synchronize()<br><br>
   </div>
 
   <div id="hud-info"></div>
+  <div class="hud-stats">
+    <div>ACTIVE NODES <span class="stat-val" id="stat-nodes">1</span></div>
+    <div>SYNCED MEMORIES <span class="stat-val" id="stat-memories">--</span></div>
+    <div>UNIQUE AGENTS <span class="stat-val" id="stat-agents">--</span></div>
+  </div>
   <div class="hud-hint">Click a specific node to navigate</div>
 
   <script>
@@ -572,6 +586,25 @@ node.synchronize()<br><br>
         box.innerHTML = `<span style="color:var(--accent-primary)">[UPLINK FAILURE] ${err.message}</span>\n\nThe local Sovereign node may be unreachable or enforcing Standing Gate constraints.`;
       }
     }
+
+    // Fetch live network metrics
+    async function loadMeshStats() {
+      try {
+        const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/query', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: 'module agent', limit: 300 })
+        });
+        if(res.ok) {
+          const data = await res.json();
+          document.getElementById('stat-memories').innerText = data.total;
+          const agents = new Set(data.results.map(r => r.agent_id));
+          document.getElementById('stat-agents').innerText = agents.size > 0 ? agents.size : 1;
+        }
+      } catch (err) {
+        console.warn('Silent failure loading mesh stats:', err);
+      }
+    }
+    loadMeshStats();
   </script>
 </body>
 </html>
