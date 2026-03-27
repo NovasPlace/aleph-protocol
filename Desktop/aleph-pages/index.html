@@ -35,6 +35,12 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Custom Scrollbar for Terminal */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
     /* Fixed Canvas Background */
     #topology-canvas {
       position: fixed;
@@ -316,7 +322,7 @@ node.synchronize()<br><br>
              <input type="text" id="mesh-query-input" placeholder="e.g., What algorithms are used for AST extraction?" style="background:transparent; border:none; color:var(--text-main); font-family:var(--font-mono); font-size:14px; width:100%; outline:none;">
           </div>
           <button class="btn btn-secondary" onclick="submitQuery()" style="align-self:flex-start; margin-top:5px; padding: 0.4rem 1rem; font-size: 0.8rem;">Transmit</button>
-          <div id="mesh-response-box" style="margin-top:10px; color:var(--text-muted); font-size:12px; white-space:pre-wrap; display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;"></div>
+          <div id="mesh-response-box" style="margin-top:10px; color:var(--text-muted); font-size:12px; white-space:pre-wrap; display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; max-height: 250px; overflow-y: auto;"></div>
         </div>
       </div>
       <button class="btn btn-secondary" onclick="activatePanel('welcome')">Close Uplink</button>
