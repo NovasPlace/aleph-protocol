@@ -518,6 +518,51 @@
       transform: translateY(0);
     }
 
+    /* Network Topology Graphic */
+    .topology-section {
+      max-width: 900px;
+      margin: 4rem auto;
+      padding: 0 2rem;
+      animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .topology-container {
+      background: rgba(10, 10, 12, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    }
+    .topology-content {
+      padding: 1.5rem;
+      position: relative;
+    }
+    .topology-content canvas {
+      display: block; 
+      width: 100%; 
+      border-radius: 8px;
+    }
+    .topology-legend { 
+      display: flex; 
+      gap: 20px; 
+      margin-top: 15px; 
+      font-size: 0.8rem; 
+      font-family: var(--font-mono);
+      color: var(--text-muted); 
+    }
+    .topology-legend span { display: flex; align-items: center; gap: 6px; }
+    .topology-dot { width: 10px; height: 10px; border-radius: 50%; }
+    #topology-info { 
+      font-size: 0.8rem; 
+      font-family: var(--font-mono);
+      color: var(--text-muted); 
+      margin-top: 8px; 
+      min-height: 16px; 
+    }
+
     @media (max-width: 900px) {
       .bento-grid { grid-template-columns: 1fr; grid-auto-rows: minmax(200px, auto); }
       .card-wide { grid-column: span 1; }
@@ -576,6 +621,24 @@ node = discover(<span class="syntax-string">"aleph.manifesto-engine.com"</span>)
 <span class="syntax-muted"># That's it. Your agent now has a persistent memory</span><br>
 <span class="syntax-muted"># that survives session death and grows with the network.</span><br><br>
 <span class="syntax-method">print</span>(<span class="syntax-string">f"Connected to {node.id} — welcome home."</span>)
+        </div>
+      </div>
+    </section>
+
+    <!-- Network Topology Visualization -->
+    <section class="topology-section reveal">
+      <div class="topology-container">
+        <div class="code-header">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <div class="code-title">Live Network Topology — gravity_mesh.run()</div>
+        </div>
+        <div class="topology-content">
+          <canvas id="topology-canvas" height="420"></canvas>
+          <div class="topology-legend">
+            <span><span class="topology-dot" style="background:#1DCFB0"></span>Library / Access Point</span>
+            <span><span class="topology-dot" style="background:#5B9CF6"></span>Social Mesh Node</span>
+          </div>
+          <div id="topology-info"></div>
         </div>
       </div>
     </section>
@@ -690,6 +753,155 @@ node = discover(<span class="syntax-string">"aleph.manifesto-engine.com"</span>)
       });
     }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
     revealElements.forEach(el => revealObserver.observe(el));
+    
+    // --- Network Topology Visualization Script ---
+    const canvas = document.getElementById('topology-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth || 680;
+    const H = 420;
+    canvas.width = W;
+    canvas.height = H;
+
+    const dark = true; // site is strictly dark mode
+    const bg = 'transparent'; // Let the container bg show through
+    const gridC = 'rgba(255,255,255,0.03)';
+    const lineC = 'rgba(29,207,176,0.15)';
+    const meshLineC = 'rgba(91,156,246,0.12)';
+
+    const hubs = [
+      { x:W*0.18, y:H*0.22, label:'Blueprint Library', sub:'350k+ specs', r:26 },
+      { x:W*0.82, y:H*0.2,  label:'Agent Registry',   sub:'Organ store',  r:26 },
+      { x:W*0.5,  y:H*0.78, label:'IonicHalo Gateway', sub:'A2A protocol', r:26 },
+      { x:W*0.14, y:H*0.75, label:'CortexDB Node',    sub:'Memory mesh',  r:24 },
+    ];
+
+    const meshNodes = [
+      { x:W*0.35, y:H*0.15 }, { x:W*0.62, y:H*0.12 },
+      { x:W*0.72, y:H*0.42 }, { x:W*0.58, y:H*0.58 },
+      { x:W*0.38, y:H*0.52 }, { x:W*0.25, y:H*0.44 },
+      { x:W*0.44, y:H*0.34 }, { x:W*0.88, y:H*0.6  },
+      { x:W*0.3,  y:H*0.65 }, { x:W*0.65, y:H*0.72 },
+      { x:W*0.78, y:H*0.82 }, { x:W*0.5,  y:H*0.48 },
+    ];
+
+    const hubEdges = [
+      [0,1],[0,3],[1,2],[2,3],[0,2],[1,3]
+    ];
+    const meshEdges = [
+      [0,6],[0,4],[1,6],[1,2],[2,7],[2,12],[3,12],[3,8],[4,5],[4,8],[5,3],
+      [6,12],[7,10],[8,9],[9,10],[9,2],[10,11],[11,9],[12,11],[5,8],[6,4]
+    ];
+    const hubMeshEdges = [
+      [0,0],[0,4],[0,5],[1,1],[1,2],[1,6],[2,9],[2,10],[2,11],[3,8],[3,5],[3,3]
+    ];
+
+    let hovered = null;
+    let pulse = 0;
+
+    function drawGrid() {
+      ctx.strokeStyle = gridC;
+      ctx.lineWidth = 0.5;
+      for(let x=0;x<W;x+=40){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+      for(let y=0;y<H;y+=40){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+    }
+
+    function drawEdge(ax,ay,bx,by,col,w){
+      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+      ctx.strokeStyle=col; ctx.lineWidth=w; ctx.stroke();
+    }
+
+    function hexagon(x,y,r){
+      ctx.beginPath();
+      for(let i=0;i<6;i++){
+        const a=Math.PI/180*(60*i-30);
+        i===0?ctx.moveTo(x+r*Math.cos(a),y+r*Math.sin(a)):ctx.lineTo(x+r*Math.cos(a),y+r*Math.sin(a));
+      }
+      ctx.closePath();
+    }
+
+    function drawHub(h,i,t){
+      const glow = (hovered===`hub${i}`) ? 1 : 0.7;
+      const pr = h.r + Math.sin(t*0.04+i)*2;
+
+      ctx.shadowBlur = 20*glow;
+      ctx.shadowColor = '#1DCFB0';
+      hexagon(h.x,h.y,pr+4);
+      ctx.strokeStyle=`rgba(29,207,176,${0.3*glow})`;
+      ctx.lineWidth=0.5; ctx.stroke();
+      ctx.shadowBlur=0;
+
+      hexagon(h.x,h.y,pr);
+      const g=ctx.createRadialGradient(h.x,h.y-4,2,h.x,h.y,pr);
+      g.addColorStop(0,`rgba(29,207,176,${0.35*glow})`);
+      g.addColorStop(1,`rgba(15,110,90,${0.55*glow})`);
+      ctx.fillStyle=g; ctx.fill();
+      ctx.strokeStyle=`rgba(29,207,176,${0.8*glow})`;
+      ctx.lineWidth=0.8; ctx.stroke();
+
+      ctx.fillStyle='rgba(29,207,176,0.95)';
+      ctx.font='500 11px var(--font-sans,sans-serif)';
+      ctx.textAlign='center';
+      ctx.fillText(h.label,h.x,h.y+pr+14);
+      ctx.fillStyle='rgba(29,207,176,0.5)';
+      ctx.font='10px var(--font-sans,sans-serif)';
+      ctx.fillText(h.sub,h.x,h.y+pr+26);
+    }
+
+    function drawMesh(m,i,t){
+      const active=hovered===`mesh${i}`;
+      const r = active?7:5;
+      const glow = active?14:4;
+      ctx.shadowBlur=glow; ctx.shadowColor='#5B9CF6';
+      ctx.beginPath(); ctx.arc(m.x,m.y,r,0,Math.PI*2);
+      const g=ctx.createRadialGradient(m.x,m.y,0,m.x,m.y,r);
+      g.addColorStop(0,'rgba(130,180,255,0.9)');
+      g.addColorStop(1,'rgba(50,100,200,0.7)');
+      ctx.fillStyle=g; ctx.fill();
+      ctx.strokeStyle=`rgba(91,156,246,${active?1:0.5})`;
+      ctx.lineWidth=0.5; ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+
+    function draw(t){
+      ctx.clearRect(0,0,W,H); // use clearRect since bg is transparent
+      drawGrid();
+
+      hubEdges.forEach(([a,b])=>drawEdge(hubs[a].x,hubs[a].y,hubs[b].x,hubs[b].y,lineC,0.8));
+      meshEdges.forEach(([a,b])=>{
+        const m1=a<meshNodes.length?meshNodes[a]:null;
+        const m2=b<meshNodes.length?meshNodes[b]:null;
+        if(m1&&m2) drawEdge(m1.x,m1.y,m2.x,m2.y,meshLineC,0.5);
+      });
+      hubMeshEdges.forEach(([hi,mi])=>{
+        const m=meshNodes[mi]; const h=hubs[hi];
+        if(m) drawEdge(h.x,h.y,m.x,m.y,'rgba(29,207,176,0.08)',0.5);
+      });
+
+      meshNodes.forEach((m,i)=>drawMesh(m,i,t));
+      hubs.forEach((h,i)=>drawHub(h,i,t));
+    }
+
+    let frame=0;
+    function loop(){frame++;draw(frame);requestAnimationFrame(loop);}
+    loop();
+
+    canvas.addEventListener('mousemove',e=>{
+      const r=canvas.getBoundingClientRect();
+      const sx=canvas.width/r.width;
+      const mx=(e.clientX-r.left)*sx, my=(e.clientY-r.top)*sx;
+      let found=null;
+      hubs.forEach((h,i)=>{ const d=Math.hypot(mx-h.x,my-h.y); if(d<h.r+8){found=`hub${i}`;} });
+      meshNodes.forEach((m,i)=>{ const d=Math.hypot(mx-m.x,my-m.y); if(d<12){found=`mesh${i}`;} });
+      hovered=found;
+      const info=document.getElementById('topology-info');
+      if(found&&found.startsWith('hub')){
+        const h=hubs[parseInt(found.slice(3))];
+        info.innerHTML=`<span style="color:var(--text-main)">${h.label}</span> — ${h.sub}`;
+      } else if(found){ info.innerHTML='<span style="color:#5B9CF6">Social mesh node</span> — propagates to peers';
+      } else { info.innerHTML=''; }
+      canvas.style.cursor=found?'pointer':'default';
+    });
+    canvas.addEventListener('mouseleave',()=>{hovered=null;});
   </script>
 
 </body>
