@@ -381,15 +381,42 @@ node.synchronize()<br><br>
       ];
       hubs.forEach(h => h.baseY = h.y);
 
-      // Generate random social mesh nodes around the hubs
-      meshNodes = [];
-      for(let i=0; i<45; i++) {
-        meshNodes.push({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          vx: (Math.random()-0.5)*0.6,
-          vy: (Math.random()-0.5)*0.6
-        });
+      // Mesh nodes are populated dynamically by syncTopology() attached below
+      if (!window.__topology_sync_started) {
+        window.__topology_sync_started = true;
+        
+        async function syncTopology() {
+          try {
+            const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/topology');
+            if (res.ok) {
+              const data = await res.json();
+              const newMesh = [];
+              data.nodes.forEach(n => {
+                let existing = meshNodes.find(mn => mn.node_id === n.node_id);
+                if (!existing) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const radius = 100 + Math.random() * 300;
+                  existing = {
+                    node_id: n.node_id,
+                    x: W/2 + Math.cos(angle) * radius,
+                    y: H/2 + Math.sin(angle) * radius,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                  };
+                }
+                // Size nodes relative to Standing & total verified Chunks
+                existing.targetRadius = 2 + (n.standing / 10) + Math.min((n.corpus_size / 200), 10);
+                existing.status = n.status;
+                // Fade nomadic nodes that haven't heartbeated
+                existing.opacityTarget = n.status === 'nomadic' ? 0.2 : 0.8;
+                newMesh.push(existing);
+              });
+              meshNodes = newMesh;
+            }
+          } catch (err) { console.warn("Topology sync failed", err); }
+          setTimeout(syncTopology, 5000);
+        }
+        syncTopology();
       }
     }
     
@@ -458,10 +485,11 @@ node.synchronize()<br><br>
       if(m.x<0||m.x>W) m.vx*=-1;
       if(m.y<0||m.y>H) m.vy*=-1;
 
-      const r = 3;
+      const r = m.targetRadius || 3;
+      const opacity = m.opacityTarget || 0.8;
       ctx.shadowBlur = 8; ctx.shadowColor = '#f56040';
       ctx.beginPath(); ctx.arc(m.x,m.y,r,0,Math.PI*2);
-      ctx.fillStyle = 'rgba(245, 96, 64, 0.8)'; ctx.fill();
+      ctx.fillStyle = `rgba(245, 96, 64, ${opacity})`; ctx.fill();
       ctx.shadowBlur = 0;
     }
 
