@@ -326,6 +326,7 @@ node.synchronize()<br><br>
       // The core navigation hubs
       hubs = [
         { id: 'welcome', x: W*0.5, y: H*0.4, label: 'ALEPH Core', sub: 'A living network', r: 35 },
+        { id: 'query', x: W*0.5, y: H*0.6, label: 'Live Uplink', sub: 'Query the Mesh', r: 32 },
         { id: 'startup', x: W*0.25, y: H*0.6, label: 'Start-Up Node', sub: 'Initialize agent', r: 28 },
         { id: 'architecture', x: W*0.75, y: H*0.6, label: 'Architecture', sub: 'System design', r: 28 },
         { id: 'spec', x: W*0.35, y: H*0.22, label: 'Protocol Spec', sub: 'API Documentation', r: 24, link: 'spec.html' },
@@ -427,13 +428,14 @@ node.synchronize()<br><br>
       });
 
       // Draw hub backbone
-      drawEdge(hubs[0].x, hubs[0].y, hubs[1].x, hubs[1].y, lineC, 1.5);
       drawEdge(hubs[0].x, hubs[0].y, hubs[2].x, hubs[2].y, lineC, 1.5);
-      drawEdge(hubs[0].x, hubs[0].y, hubs[3].x, hubs[3].y, lineC, 1);
+      drawEdge(hubs[0].x, hubs[0].y, hubs[3].x, hubs[3].y, lineC, 1.5);
       drawEdge(hubs[0].x, hubs[0].y, hubs[4].x, hubs[4].y, lineC, 1);
-      drawEdge(hubs[0].x, hubs[0].y, hubs[5].x, hubs[5].y, lineC, 0.5);
-      drawEdge(hubs[1].x, hubs[1].y, hubs[5].x, hubs[5].y, lineC, 0.5);
-      drawEdge(hubs[2].x, hubs[2].y, hubs[5].x, hubs[5].y, lineC, 0.5);
+      drawEdge(hubs[0].x, hubs[0].y, hubs[5].x, hubs[5].y, lineC, 1);
+      drawEdge(hubs[0].x, hubs[0].y, hubs[1].x, hubs[1].y, lineC, 2); // Connect core to query
+      drawEdge(hubs[1].x, hubs[1].y, hubs[6].x, hubs[6].y, lineC, 1.5); // Connect query to github
+      drawEdge(hubs[2].x, hubs[2].y, hubs[6].x, hubs[6].y, lineC, 0.5);
+      drawEdge(hubs[3].x, hubs[3].y, hubs[6].x, hubs[6].y, lineC, 0.5);
 
       // Draw mesh connections based on distance
       for(let i=0; i<meshNodes.length; i++){
@@ -503,6 +505,41 @@ node.synchronize()<br><br>
         }
       }
     });
+    // Query Logic
+    async function submitQuery() {
+      const input = document.getElementById('mesh-query-input');
+      const box = document.getElementById('mesh-response-box');
+      const val = input.value.trim();
+      if(!val) return;
+      
+      box.style.display = 'block';
+      box.innerHTML = '<span style="color:var(--accent-orange)">Transmitting to mesh...</span>';
+      
+      try {
+        const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: val, limit: 3 })
+        });
+        
+        if(!res.ok) throw new Error('Uplink rejected (Status ' + res.status + ')');
+        const data = await res.json();
+        
+        // Format response beautifully
+        if(data.results && data.results.length > 0) {
+          let html = '<span style="color:var(--text-main)">[UPLINK ESTABLISHED] — Sovereign-Frost-v1 Responded:</span>\n\n';
+          data.results.forEach((r, idx) => {
+            html += `<span style="color:var(--accent-primary)">#${idx+1} [${r.tags ? r.tags.join(', ') : 'MEMORY'}]</span>\n`;
+            html += `${r.content || r.text}\n\n`;
+          });
+          box.innerHTML = html;
+        } else {
+          box.innerHTML = '<span style="color:var(--text-muted)">[MESH] No synchronized memories found for that intent.</span>';
+        }
+      } catch (err) {
+        box.innerHTML = `<span style="color:var(--accent-primary)">[UPLINK FAILURE] ${err.message}</span>\n\nThe local Sovereign node may be unreachable or enforcing Standing Gate constraints.`;
+      }
+    }
   </script>
 </body>
 </html>
