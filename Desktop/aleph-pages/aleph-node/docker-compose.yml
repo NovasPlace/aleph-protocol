@@ -1,0 +1,16 @@
+services:
+  aleph-node:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      - ALEPH_OPERATOR=yourname          # REQUIRED — identifies who runs this node
+      - ALEPH_NODE_URL=http://localhost:8765
+      - ALEPH_LABEL=My ALEPH Node
+      # - ALEPH_NODE_ID=custom-id        # auto-generated if omitted
+    volumes:
+      - aleph-data:/data                 # persistent storage across restarts
+    restart: unless-stopped
+
+volumes:
+  aleph-data:
