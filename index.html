@@ -379,10 +379,10 @@ node.synchronize()<br><br>
       ];
       hubs.forEach(h => h.baseY = h.y);
 
-      // Mesh nodes are populated dynamically by syncTopology() attached below
+      // Community nodes — populated dynamically by syncTopology()
       if (!window.__topology_sync_started) {
         window.__topology_sync_started = true;
-        
+
         async function syncTopology() {
           try {
             const res = await fetch('https://aleph.manifesto-engine.com/aleph/v1/topology');
@@ -390,29 +390,40 @@ node.synchronize()<br><br>
               const data = await res.json();
               const newMesh = [];
               data.nodes.forEach(n => {
+                // Preserve position/velocity from previous frame so nodes don't teleport
                 let existing = meshNodes.find(mn => mn.node_id === n.node_id);
                 if (!existing) {
+                  // Spawn in a ring around the canvas center — not on top of hubs
                   const angle = Math.random() * Math.PI * 2;
-                  const radius = 100 + Math.random() * 300;
+                  const radius = Math.min(W, H) * 0.25 + Math.random() * Math.min(W, H) * 0.2;
                   existing = {
                     node_id: n.node_id,
                     x: W/2 + Math.cos(angle) * radius,
                     y: H/2 + Math.sin(angle) * radius,
-                    vx: (Math.random() - 0.5) * 0.4,
-                    vy: (Math.random() - 0.5) * 0.4,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: (Math.random() - 0.5) * 0.3,
+                    spawnFrame: frame,   // used for entrance animation
                   };
                 }
-                // Size nodes relative to Standing & total verified Chunks
-                existing.targetRadius = 2 + (n.standing / 10) + Math.min((n.corpus_size / 200), 10);
-                existing.status = n.status;
-                // Fade nomadic nodes that haven't heartbeated
-                existing.opacityTarget = n.status === 'nomadic' ? 0.2 : 0.8;
+                existing.label    = n.node_id;                 // shown on canvas
+                existing.endpoint = n.endpoint || '';           // for click-through
+                existing.caps     = n.capabilities || [];
+                existing.status   = n.status || 'unreachable';
+                // Radius grows with standing — floor 14 so hexagon is always legible
+                existing.r = Math.max(14, 14 + (n.standing / 8) + Math.min((n.corpus_size / 100), 8));
+                existing.opacity = existing.status === 'online'    ? 0.85
+                                 : existing.status === 'nomadic'   ? 0.45
+                                 : 0.25;  // unreachable
                 newMesh.push(existing);
               });
               meshNodes = newMesh;
+              // Update the HUD counter — only count online + nomadic
+              const liveCount = meshNodes.filter(m => m.status !== 'unreachable').length;
+              const nodeEl = document.getElementById('stat-nodes');
+              if (nodeEl) nodeEl.innerText = liveCount || '--';
             }
-          } catch (err) { console.warn("Topology sync failed", err); }
-          setTimeout(syncTopology, 5000);
+          } catch (err) { console.warn('Topology sync failed:', err); }
+          setTimeout(syncTopology, 8000);
         }
         syncTopology();
       }
@@ -477,18 +488,71 @@ node.synchronize()<br><br>
       ctx.fillText(h.sub, h.x, h.y + pr + 36);
     }
 
-    function drawMesh(m,i,t){
-      // Slowly drift
+    function drawCommunityNode(m, i, t) {
+      // ── Drift ────────────────────────────────────────────────────────────────
       m.x += m.vx; m.y += m.vy;
-      if(m.x<0||m.x>W) m.vx*=-1;
-      if(m.y<0||m.y>H) m.vy*=-1;
+      // Soft bounce off edges with padding so labels stay readable
+      if (m.x < 60 || m.x > W - 60) m.vx *= -1;
+      if (m.y < 60 || m.y > H - 60) m.vy *= -1;
 
-      const r = m.targetRadius || 3;
-      const opacity = m.opacityTarget || 0.8;
-      ctx.shadowBlur = 8; ctx.shadowColor = '#d67b52';
-      ctx.beginPath(); ctx.arc(m.x,m.y,r,0,Math.PI*2);
-      ctx.fillStyle = `rgba(214, 123, 82, ${opacity})`; ctx.fill();
+      const pr  = m.r || 14;
+      const op  = m.opacity || 0.3;
+      const isOnline  = m.status === 'online';
+      const isNomadic = m.status === 'nomadic';
+      const isHov = (hoveredMesh === m.node_id);
+
+      // Color scheme: green = online, orange = nomadic, dim orange = unreachable
+      const hex   = isOnline ? '#6eb883' : '#d67b52';
+      const rgb   = isOnline ? '110,184,131' : '214,123,82';
+      const inner = isOnline ? '50,100,70' : '100,55,25';
+
+      // ── Entrance pop (first 60 frames after spawn) ──────────────────────────
+      const age = frame - (m.spawnFrame || 0);
+      const entranceScale = age < 60 ? 0.3 + 0.7 * (age / 60) : 1;
+      const drawR = pr * entranceScale;
+
+      const glow = isHov ? 1.4 : 0.8;
+      const pulse = Math.sin(t * 0.04 + i) * 2;  // gentle size oscillation
+
+      ctx.save();
+      ctx.globalAlpha = op;
+
+      // Outer ring (faint, larger)
+      ctx.shadowBlur = 20 * glow;
+      ctx.shadowColor = hex;
+      hexagon(m.x, m.y, drawR + 6 + pulse);
+      ctx.strokeStyle = `rgba(${rgb}, ${0.3 * glow})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
       ctx.shadowBlur = 0;
+
+      // Inner hex fill
+      hexagon(m.x, m.y, drawR + pulse);
+      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, drawR + pulse);
+      g.addColorStop(0, `rgba(${rgb}, ${0.35 * glow})`);
+      g.addColorStop(1, `rgba(${inner}, ${0.6 * glow})`);
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${rgb}, ${0.85 * glow})`;
+      ctx.lineWidth = isHov ? 2 : 1.5;
+      ctx.stroke();
+
+      ctx.restore();
+
+      // ── Label (always rendered, brightens on hover) ───────────────────────
+      const labelOp = isHov ? 1 : Math.min(op + 0.2, 0.85);
+      // Shorten long node_ids for readability on canvas
+      const shortId = m.label ? m.label.replace(/^[a-z]+-/, '').substring(0, 20) : '?';
+      ctx.fillStyle = `rgba(255,255,255,${labelOp})`;
+      ctx.font = `${isHov ? '600' : '500'} 11px var(--font-mono,monospace)`;
+      ctx.textAlign = 'center';
+      ctx.fillText(shortId, m.x, m.y + drawR + 18);
+
+      // Status badge dot beneath label
+      ctx.beginPath();
+      ctx.arc(m.x, m.y + drawR + 27, 3, 0, Math.PI * 2);
+      ctx.fillStyle = isOnline ? '#6eb883' : isNomadic ? '#d67b52' : 'rgba(255,255,255,0.2)';
+      ctx.fill();
     }
 
     function draw(t){
@@ -509,71 +573,99 @@ node.synchronize()<br><br>
       drawEdge(hubs[2].x, hubs[2].y, hubs[6].x, hubs[6].y, lineC, 0.5);
       drawEdge(hubs[3].x, hubs[3].y, hubs[6].x, hubs[6].y, lineC, 0.5);
 
-      // Draw mesh connections based on distance
-      for(let i=0; i<meshNodes.length; i++){
-        for(let j=i+1; j<meshNodes.length; j++){
-          const dx = meshNodes[i].x - meshNodes[j].x;
-          const dy = meshNodes[i].y - meshNodes[j].y;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          if(dist < 130) {
-            drawEdge(meshNodes[i].x, meshNodes[i].y, meshNodes[j].x, meshNodes[j].y, `rgba(214, 123, 82, ${1 - dist/130})`, 0.6);
+      // Draw community node edges
+      const core = hubs[0];  // ALEPH Core hub — all community nodes anchor to it
+      for (let i = 0; i < meshNodes.length; i++) {
+        const m = meshNodes[i];
+        const isOnline = m.status === 'online';
+        const edgeOp = isOnline ? 0.35 : 0.12;
+        // Node-to-node links when close
+        for (let j = i + 1; j < meshNodes.length; j++) {
+          const dx = m.x - meshNodes[j].x;
+          const dy = m.y - meshNodes[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 160) {
+            const rgb = (isOnline && meshNodes[j].status === 'online') ? '110,184,131' : '214,123,82';
+            drawEdge(m.x, m.y, meshNodes[j].x, meshNodes[j].y, `rgba(${rgb},${(1 - dist/160) * 0.3})`, 0.8);
           }
         }
-        // Connect mesh to nearest hub
-        let nearestHub = hubs[0];
-        let minDist = 9999;
-        hubs.forEach(h => {
-          const d = Math.hypot(meshNodes[i].x - h.x, meshNodes[i].y - h.y);
-          if(d < minDist) { minDist = d; nearestHub = h; }
-        });
-        if(minDist < 250) {
-          drawEdge(meshNodes[i].x, meshNodes[i].y, nearestHub.x, nearestHub.y, `rgba(110, 184, 131, ${0.4 * (1 - minDist/250)})`, 1.0);
-        }
+        // Always draw a tenuous thread back to ALEPH Core
+        const distToCore = Math.hypot(m.x - core.x, m.y - core.y);
+        const coreEdgeOp = isOnline ? 0.3 * (1 - Math.min(distToCore, 500) / 500) : 0.08;
+        const coreRgb = isOnline ? '110,184,131' : '214,123,82';
+        drawEdge(m.x, m.y, core.x, core.y, `rgba(${coreRgb},${coreEdgeOp})`, isOnline ? 1.2 : 0.6);
       }
 
-      meshNodes.forEach((m,i)=>drawMesh(m,i,t));
-      hubs.forEach((h,i)=>drawHub(h,i,t));
+      meshNodes.forEach((m, i) => drawCommunityNode(m, i, t));
+      hubs.forEach((h, i) => drawHub(h, i, t));
     }
 
     let frame=0;
     function loop(){frame++; draw(frame); requestAnimationFrame(loop);}
     loop();
 
-    // Interaction
+    // ── Interaction ───────────────────────────────────────────────────────────
+    let hoveredMesh = null;   // node_id of hovered community node
+
     canvas.addEventListener('mousemove', e => {
       const mx = e.clientX, my = e.clientY;
-      let found = null;
-      let hubData = null;
-      hubs.forEach(h => { 
-        if(Math.hypot(mx - h.x, my - h.y) < h.r + 20) { 
-          found = h.id; 
-          hubData = h;
-        } 
-      });
-      
-      hovered = found;
-      canvas.style.cursor = found ? 'pointer' : 'default';
+      let foundHub  = null;
+      let hubData   = null;
+      let foundMesh = null;
 
-      if(hubData) {
+      hubs.forEach(h => {
+        if (Math.hypot(mx - h.x, my - h.y) < h.r + 20) {
+          foundHub = h.id;
+          hubData  = h;
+        }
+      });
+
+      // Check community nodes (only if no hub hit)
+      if (!foundHub) {
+        meshNodes.forEach(m => {
+          if (Math.hypot(mx - m.x, my - m.y) < (m.r || 14) + 12) {
+            foundMesh = m;
+          }
+        });
+      }
+
+      hovered     = foundHub;
+      hoveredMesh = foundMesh ? foundMesh.node_id : null;
+      canvas.style.cursor = (foundHub || foundMesh) ? 'pointer' : 'default';
+
+      if (hubData) {
         hud.innerHTML = `<span style="color:var(--text-main)">${hubData.label}</span> — ${hubData.sub}`;
+        hud.classList.add('visible');
+      } else if (foundMesh) {
+        const statusIcon = foundMesh.status === 'online' ? '🟢' : foundMesh.status === 'nomadic' ? '🟡' : '⚫';
+        const capsStr = foundMesh.caps && foundMesh.caps.length ? foundMesh.caps.join(', ') : '—';
+        hud.innerHTML = `<span style="color:var(--text-main)">${foundMesh.label}</span>`
+          + ` ${statusIcon} ${foundMesh.status}`
+          + `<br><span style="font-size:10px;opacity:0.6">${capsStr}</span>`;
         hud.classList.add('visible');
       } else {
         hud.classList.remove('visible');
       }
     });
 
-    canvas.addEventListener('mouseleave', () => { 
-      hovered = null; 
+    canvas.addEventListener('mouseleave', () => {
+      hovered     = null;
+      hoveredMesh = null;
       hud.classList.remove('visible');
     });
 
     canvas.addEventListener('click', e => {
-      if(hovered) {
+      if (hovered) {
         const h = hubs.find(x => x.id === hovered);
-        if(h.link) {
+        if (h.link) {
           window.location.href = h.link;
         } else {
           activatePanel(h.id);
+        }
+      } else if (hoveredMesh) {
+        const m = meshNodes.find(x => x.node_id === hoveredMesh);
+        if (m && m.endpoint) {
+          window.open(m.endpoint, '_blank', 'noopener');
         }
       }
     });
