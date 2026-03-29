@@ -19,36 +19,49 @@ ORIGIN_NODE = "https://aleph.manifesto-engine.com"
 
 def spin_tunnel(port: int = 8800) -> tuple[subprocess.Popen, str]:
     print("\033[96m[ALEPH]\033[0m \033[93mProvisioning ephemeral federated tunnel...\033[0m")
+    
+    use_ssh = False
     try:
         subprocess.run(["cloudflared", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("\033[91m[ALEPH ERROR] 'cloudflared' not found. Please install it first.\033[0m")
-        sys.exit(1)
+        print("\033[93m[ALEPH WARN] 'cloudflared' not found. Falling back to native SSH tunnel...\033[0m")
+        use_ssh = True
 
-    proc = subprocess.Popen(
-        ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
+    if use_ssh:
+        # Native SSH tunnel via localhost.run — identical to Snail Lord's pivot strategy
+        proc = subprocess.Popen(
+            ["ssh", "-o", "StrictHostKeyChecking=no", "-R", f"80:localhost:{port}", "nokey@localhost.run"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        url_pattern = re.compile(r"(https://[a-zA-Z0-9-]+\.lhr\.life)")
+    else:
+        # Cloudflared tunnel
+        proc = subprocess.Popen(
+            ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        url_pattern = re.compile(r"(https://[a-zA-Z0-9-]+\.trycloudflare\.com)")
     
     url = None
-    url_pattern = re.compile(r"(https://[a-zA-Z0-9-]+\.trycloudflare\.com)")
-    
     start_time = time.time()
     for line in iter(proc.stdout.readline, ''):
         match = url_pattern.search(line)
         if match:
             url = match.group(1)
             break
-        if time.time() - start_time > 15:
+        if time.time() - start_time > 20:  # SSH negotations sometimes need a few extra seconds
             print("\033[91m[ALEPH TIMEOUT] Failed to acquire tunnel URL.\033[0m")
             proc.terminate()
             sys.exit(1)
             
     if not url:
-        print("\033[91m[ALEPH ERROR] Could not parse trycloudflare.com URL.\033[0m")
+        print("\033[91m[ALEPH ERROR] Could not parse tunnel URL from output.\033[0m")
         proc.terminate()
         sys.exit(1)
         
