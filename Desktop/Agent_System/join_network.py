@@ -68,11 +68,21 @@ def spin_tunnel(port: int = 8800) -> tuple[subprocess.Popen, str]:
     return proc, url
 
 def post_beacon(endpoint_url: str):
+    import socket
+    
+    capabilities = ["query", "peers"]
+    # Check if the local Mycelial Mesh daemon is listening
+    mesh_port = int(os.environ.get("MESH_DAEMON_PORT", "7700"))
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        if s.connect_ex(('127.0.0.1', mesh_port)) == 0:
+            capabilities.append("task-relay")
+
     payload = {
-        "node_id": "aleph-community-node",
+        "node_id": os.environ.get("MY_NODE_ID", "aleph-community-node"),
         "operator": "anonymous-developer",
         "endpoint": endpoint_url,
-        "capabilities": ["query", "peers"],
+        "capabilities": capabilities,
         "standing": 10,
         "corpus_size": 0,
         "online_since": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

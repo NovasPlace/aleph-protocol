@@ -1,0 +1,30 @@
+# Agent System — Technical Summary (v0.1.0)
+
+The Agent System is a persistent, sovereign digital organism adhering to the SEA (Sovereign Engine Architecture) v1.0.
+
+## 🏛️ Architecture Overview
+- **Core Engine**: `Sovereign_Engine_Core` (FastAPI/Python runtime).
+- **Control Layer**: `Onboarding.py` (T=0 context assembly).
+- **Communication Layer**: `IonicHalo` (IPC bridge) + `ALEPH Protocol` (P2P discovery).
+- **Memory Substrate**: `Cortex Memory Complex` (PostgreSQL/SQLite based episodic & semantic persistence).
+
+## 🧬 Cognitive Topography (Organs)
+The system currently features 32 specialized cognitive organs in `organs/`, including:
+- **Cortex**: Primary episodic retrieval.
+- **Goal-Stack**: Priority-driven objective management.
+- **Adaptive-Cognition**: Dynamic routing across LLM providers.
+- **Theory-Of-Mind**: Modeling peer agent and operator intent.
+- **Counterfactual-Engine**: Forward-simulating task outcomes.
+
+## ⚙️ Operational Infrastructure (Daemons)
+- **Reaper**: Autonomic process health and zombie cleanup.
+- **Consistency-Daemon**: Ensuring memory-disk synchronization.
+- **In-process Monitoring**: Real-time Trace Ledger logging to PostgreSQL.
+
+## 🛠️ Tooling & Agency
+- **Jail-bound Execution**: All agent actions are metadata-tagged and approval-gated.
+- **Execution Proof Law**: All claims of success are verified against raw stdout/stderr logs.
+- **Physical Extension**: The system can extend its own capability by writing and executing local scripts within approved paths.
+
+---
+*Verified by Antigravity — 2026-03-31*
