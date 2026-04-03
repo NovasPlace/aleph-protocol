@@ -243,10 +243,8 @@ select option { background: var(--surface2); }
     <div class="logo">ALEPH <span>// KNOWLEDGE MESH</span></div>
     <div class="node-selector">
       <span style="font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase;">Host:</span>
-      <select id="node-host-select" onchange="changeNode(this.value)">
-        <option value="https://aleph.manifesto-engine.com">Sovereign Library (aleph.manifesto-engine.com)</option>
-        <option value="http://localhost:8765">Local Agent Node (:8765)</option>
-        <option value="http://localhost:8801">Local Dev Node (:8801)</option>
+      <select id="node-host-select" onchange="handleNodeSelect(this.value)">
+        <!-- Injected via JavaScript -->
       </select>
     </div>
   </div>
@@ -445,22 +443,190 @@ select option { background: var(--surface2); }
 </div>
 
 </div><!-- #app -->
+</div>
 
+<div class="modal-overlay" id="node-modal">
+  <div class="modal" style="max-width:600px;">
+    <button class="close-btn" onclick="closeNodeManager()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+    </button>
+    <div class="modal-body" style="padding: 30px;">
+      <h2 style="font-size:20px; font-weight:600; margin-bottom:4px; color:var(--text);">Manage Nodes</h2>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:24px;">Configure remote connections and credentials. <br><span style="color:var(--green); font-family:var(--mono); font-size:11px;">[✓] Credentials stored locally — never transmitted to external telemetry servers.</span></p>
+
+      <div id="node-list-container" style="display:flex; flex-direction:column; gap:8px; margin-bottom: 24px;">
+        <!-- JS rendered node items -->
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 24px; margin-top: 24px;">
+        <h3 style="font-size:14px; font-weight:600; margin-bottom:12px; color:var(--text);">Add New Node</h3>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input type="text" id="nn-name" class="input" placeholder="Node Name (e.g. Sovereign Library)" style="flex:1;">
+          <input type="text" id="nn-url" class="input" placeholder="https://aleph.manifesto-engine.com" style="flex:2;">
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <input type="text" id="nn-agent" class="input" placeholder="Agent ID (Optional)" style="flex:1;">
+          <input type="password" id="nn-key" class="input" placeholder="X-API-Key (Optional)" style="flex:2;">
+        </div>
+        <button class="btn btn-primary" style="width:100%; border-radius:8px;" onclick="addCustomNode()">+ Add Connection</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
-let NODE = localStorage.getItem('aleph_node_url') || 'https://aleph.manifesto-engine.com';
+let ALEPH_NODES = JSON.parse(localStorage.getItem('aleph_nodes_v2') || '[]');
+let NODE = '';
 let _searchTimer = null;
 let _activeType  = '';
 let _adminKey    = '';
 
+// ── Node Management Core ─────────────────────────────────────
+function migrateAndLoadNodes() {
+  if (ALEPH_NODES.length === 0) {
+    // Migration from v1
+    const legacyUrl = localStorage.getItem('aleph_node_url');
+    const legacyKey = localStorage.getItem('aleph_api_key') || '';
+    const legacyAgt = localStorage.getItem('aleph_agent_id') || '';
+    if (legacyUrl) {
+      ALEPH_NODES.push({ id: 'node_' + Date.now(), name: 'Initial Config', url: legacyUrl, key: legacyKey, agent: legacyAgt, active: true });
+      localStorage.removeItem('aleph_node_url'); // Consume it so it doesn't resurrect.
+    }
+    saveNodesState();
+  }
+  
+  const activeNode = ALEPH_NODES.find(n => n.active) || ALEPH_NODES[0];
+  if (activeNode) {
+    if (!activeNode.active) {
+      ALEPH_NODES.forEach(n => n.active = false);
+      activeNode.active = true;
+      saveNodesState();
+    }
+    NODE = activeNode.url;
+    document.getElementById('up-key').value = activeNode.key || '';
+    document.getElementById('up-agent').value = activeNode.agent || '';
+    _adminKey = activeNode.key || '';
+    // Also sync to legacy for now so other functions don't break
+    localStorage.setItem('aleph_api_key', activeNode.key || '');
+    localStorage.setItem('aleph_agent_id', activeNode.agent || '');
+  } else {
+    NODE = ''; // No nodes configured
+  }
+
+  renderNodesDropdown();
+}
+
+function saveNodesState() {
+  localStorage.setItem('aleph_nodes_v2', JSON.stringify(ALEPH_NODES));
+}
+
+function renderNodesDropdown() {
+  const sel = document.getElementById('node-host-select');
+  if (!sel) return;
+  sel.innerHTML = ALEPH_NODES.map(n => 
+    `<option value="${n.id}" ${n.active ? 'selected' : ''}>${n.name} (${n.url})</option>`
+  ).join('') + `<option value="MANAGE">⚙️ Manage Nodes...</option>`;
+}
+
+function handleNodeSelect(val) {
+  if (val === 'MANAGE') {
+    openNodeManager();
+    // revert dropdown to active node visually
+    renderNodesDropdown();
+    return;
+  }
+  connectToNode(val);
+}
+
+function connectToNode(id) {
+  ALEPH_NODES.forEach(n => n.active = (n.id === id));
+  saveNodesState();
+  window.location.reload();
+}
+
+function openNodeManager() {
+  renderNodeListUI();
+  document.getElementById('node-modal').classList.add('show');
+}
+function closeNodeManager() {
+  document.getElementById('node-modal').classList.remove('show');
+}
+
+function renderNodeListUI() {
+  const container = document.getElementById('node-list-container');
+  if (ALEPH_NODES.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted); font-size:13px; border:1px dashed var(--border); border-radius:8px;">No nodes configured. Add one below.</div>`;
+    return;
+  }
+  container.innerHTML = ALEPH_NODES.map(n => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--surface2); border:1px solid ${n.active ? 'var(--green)' : 'var(--border)'}; border-radius:8px;">
+      <div>
+        <div style="font-weight:500; font-size:14px; color:${n.active ? 'var(--green)' : 'var(--text)'};">${n.name} ${n.active ? '<span style="font-size:10px; border:1px solid var(--green); padding:1px 4px; border-radius:4px; margin-left:6px;">ACTIVE</span>' : ''}</div>
+        <div style="font-size:12px; font-family:var(--mono); color:var(--muted); margin-top:4px;">${n.url}</div>
+        <div style="font-size:11px; margin-top:4px; color:${n.key ? '#85cc99' : '#8c82d4'};">${n.key ? '✓ Key bound' : 'No credentials bound'}</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        ${!n.active ? `<button class="btn btn-ghost btn-sm" onclick="connectToNode('${n.id}')">Connect</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteNode('${n.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addCustomNode() {
+  const name = document.getElementById('nn-name').value.trim();
+  const url = document.getElementById('nn-url').value.trim();
+  const agent = document.getElementById('nn-agent').value.trim();
+  const key = document.getElementById('nn-key').value.trim();
+  
+  if (!name || !url) return alert("Name and URL are required.");
+  
+  ALEPH_NODES.push({
+    id: 'node_' + Date.now(),
+    name, url, agent, key,
+    active: ALEPH_NODES.length === 0 // auto-activate if first
+  });
+  saveNodesState();
+  
+  document.getElementById('nn-name').value = '';
+  document.getElementById('nn-url').value = '';
+  document.getElementById('nn-agent').value = '';
+  document.getElementById('nn-key').value = '';
+  
+  renderNodeListUI();
+  renderNodesDropdown();
+  if (ALEPH_NODES.length === 1) window.location.reload();
+}
+
+function deleteNode(id) {
+  if (!confirm("Remove this node connection?")) return;
+  const target = ALEPH_NODES.find(n => n.id === id);
+  ALEPH_NODES = ALEPH_NODES.filter(n => n.id !== id);
+  saveNodesState();
+  
+  if (target && target.active) {
+    if (ALEPH_NODES.length > 0) {
+      connectToNode(ALEPH_NODES[0].id);
+    } else {
+      localStorage.removeItem('aleph_api_key');
+      localStorage.removeItem('aleph_agent_id');
+      window.location.reload();
+    }
+  } else {
+    renderNodeListUI();
+    renderNodesDropdown();
+  }
+}
+
 // ── Startup ────────────────────────────────────────────────
 (async function init() {
-  // Restore saved values
-  const selNode = document.getElementById('node-host-select');
-  if (selNode) selNode.value = NODE;
-  const k = localStorage.getItem('aleph_api_key')   || '';
-  const a = localStorage.getItem('aleph_agent_id')  || '';
-  if (k) document.getElementById('up-key').value   = k;
-  if (a) document.getElementById('up-agent').value = a;
+  migrateAndLoadNodes();
+  
+  if (!NODE) {
+    document.getElementById('lib-status').textContent = 'NO NODE CONFIGURED';
+    document.querySelector('.dot').style.background = 'var(--orange)';
+    openNodeManager();
+    return;
+  }
   updatePreview();
   renderSavedKey();
 
@@ -756,25 +922,32 @@ async function revokeKey(agent_id) {
   } catch(e) { alert(e.message); }
 }
 
+// Legacy update mechanism syncs heavily with v2 structs now.
 function renderSavedKey() {
-  const k = localStorage.getItem('aleph_api_key');
-  const a = localStorage.getItem('aleph_agent_id');
+  const k = localStorage.getItem('aleph_api_key') || '';
+  const a = localStorage.getItem('aleph_agent_id') || '';
   const el = document.getElementById('saved-key-section');
   if (k) {
     el.innerHTML = `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div class="mono" style="font-size:12px;color:var(--green)">${a||'(no agent id)'}</div>
-          <div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px">Key: ${k.slice(0,18)}…</div>
+          <div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px">Key: ${k.slice(0,25)}… bound to node</div>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="clearSavedKey()">Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="openNodeManager()">Manage in Nodes</button>
       </div>`;
   } else {
-    el.innerHTML = `<p style="color:var(--muted);font-size:13px">No key stored. Enter a key in the Upload tab to save it.</p>`;
+    el.innerHTML = `<p style="color:var(--muted);font-size:13px">No key stored. Add credentials in the <a href="#" onclick="openNodeManager(); return false;" style="color:var(--green)">Node Manager</a>.</p>`;
   }
 }
 
 function clearSavedKey() {
+  const activeNode = ALEPH_NODES.find(n => n.active);
+  if (activeNode) {
+    activeNode.key = '';
+    activeNode.agent = '';
+    saveNodesState();
+  }
   localStorage.removeItem('aleph_api_key');
   localStorage.removeItem('aleph_agent_id');
   document.getElementById('up-key').value   = '';
