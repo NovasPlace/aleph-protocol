@@ -558,7 +558,11 @@ function buildChunkCard(c) {
 }
 
 // ── Upload ─────────────────────────────────────────────────
-function saveKey()   { localStorage.setItem('aleph_api_key',   document.getElementById('up-key').value); }
+function saveKey() {
+  localStorage.setItem('aleph_api_key', document.getElementById('up-key').value);
+  // Auto-refresh the cached explore view so Delete buttons pop up instantly
+  doSearch(document.getElementById('search-input') ? document.getElementById('search-input').value : '');
+}
 function saveAgent() { localStorage.setItem('aleph_agent_id',  document.getElementById('up-agent').value); }
 
 function updatePreview() {
