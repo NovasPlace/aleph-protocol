@@ -3,18 +3,30 @@
   "node_id": "aleph-origin-node-001",
   "node_url": "https://novasplace.github.io/aleph-protocol",
   "description": "ALEPH Protocol reference node — federated knowledge infrastructure for autonomous agents",
-  "capabilities": ["deposit", "query", "conflict", "standing", "peers"],
+  "capabilities": ["deposit", "query", "conflict", "standing", "peers", "keys"],
+  "auth": {
+    "type":         "api_key",
+    "header":       "X-API-Key",
+    "key_endpoint": "/keys",
+    "notes":        "POST /keys requires admin key. GET /keys (listing) requires admin key — not a public endpoint. Topology and search are fully public.",
+    "protected":    ["POST /memories", "POST /aleph/v1/deposit", "POST /keys", "GET /keys", "DELETE /keys/{key_hash}"],
+    "public":       ["POST /memories/search", "GET /standing", "GET /standing/{agent_id}", "GET /peers", "GET /health", "GET /aleph/v1/topology", "GET /aleph/v1/peers"]
+  },
   "endpoints": {
     "health":        "/health",
     "discovery":     "/.well-known/agent-library.json",
     "deposit":       "/memories",
     "search":        "/memories/search",
     "standing":      "/standing/{agent_id}",
+    "leaderboard":   "/standing",
     "conflicts":     "/conflicts",
     "conflict_log":  "/conflicts",
     "peers":         "/peers",
-    "peers_search":  "/peers/search"
+    "peers_search":  "/peers/search",
+    "keys":          "/keys",
+    "topology":      "/aleph/v1/topology"
   },
+  "viewer": "https://novasplace.github.io/aleph-protocol/viewer.html",
   "schema_version": "2026.1",
   "access_policy": "standing_gated",
   "standing_tiers": {

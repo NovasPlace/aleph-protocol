@@ -45,6 +45,62 @@ All configuration is via environment variables. Only `ALEPH_OPERATOR` is require
 | `ALEPH_PORT` | No | `8765` | Server port |
 | `ALEPH_DATA_DIR` |No | `/data` | SQLite database directory |
 
+## API Keys
+
+### First Boot
+
+On first start, the node auto-generates an admin key and prints it to stdout **once**:
+
+```
+==============================================================
+  🔑  ALEPH ADMIN KEY GENERATED  (first boot)
+==============================================================
+  Key: aleph-admin-<hex>
+  Store this securely. It will NEVER be shown again.
+==============================================================
+```
+
+**Capture it immediately.** If running under systemd:
+
+```bash
+journalctl -u aleph-node --no-pager | grep -A2 "ADMIN KEY"
+```
+
+### Generating Agent Keys
+
+Once you have the admin key:
+
+```bash
+curl -X POST https://your-node/keys \
+  -H "X-API-Key: aleph-admin-<your-admin-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "my-agent-1.0", "label": "prod"}'
+```
+
+> **Note:** `agent_id` must not contain `/`. Use `-` or `.` as separators.
+> Slashes break path-parameterized endpoints. Valid: `sovereign-antigravity-1.0`
+
+### Admin Key Recovery
+
+If you missed the first-boot output (e.g. journal rotated, daemon mode):
+
+1. **Invalidate and regenerate:**
+
+```bash
+# Open the SQLite database
+sqlite3 $ALEPH_DATA_DIR/aleph.db
+
+-- Delete all admin keys (invalidates the lost key)
+DELETE FROM api_keys WHERE is_admin = 1;
+.quit
+```
+
+2. **Restart the node.** A new admin key will be printed on startup.
+
+> If running in daemon/pipe mode (non-TTY stdout), the key is also emitted to **stderr**.
+> Check your process manager's error log: `journalctl -u aleph-node -p err`
+
+
 ## Endpoints
 
 | Method | Path | Description |

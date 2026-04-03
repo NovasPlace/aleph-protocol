@@ -46,6 +46,12 @@ DEFAULT_NODE = os.getenv("ALEPH_NODE_URL", "https://aleph.manifesto-engine.com")
 # Agent identity for deposits
 AGENT_ID = os.getenv("ALEPH_AGENT_ID", "mcp-agent-anonymous")
 
+# API key for authenticated operations (deposit). Get one via POST /keys on the library node.
+API_KEY = os.getenv("ALEPH_API_KEY", "")
+
+# Local ALEPH node port (local_node.py)
+LOCAL_NODE_PORT = int(os.getenv("ALEPH_LOCAL_PORT", "8766"))
+
 # ═══════════════════════════════════════════════════
 # MCP SERVER
 # ═══════════════════════════════════════════════════
@@ -74,11 +80,16 @@ async def _http_get(url: str, timeout: float = 10.0) -> dict | list | None:
             return None
 
 
-async def _http_post(url: str, data: dict, timeout: float = 15.0) -> dict | None:
-    """POST request, return parsed JSON or None."""
+async def _http_post(url: str, data: dict, timeout: float = 15.0, authenticated: bool = False) -> dict | None:
+    """POST request with optional X-API-Key auth. Returns parsed JSON or None."""
+    headers = {"Content-Type": "application/json"}
+    if authenticated and API_KEY:
+        headers["X-API-Key"] = API_KEY
+    elif authenticated and not API_KEY:
+        _log("WARNING: authenticated=True but ALEPH_API_KEY is not set. Deposit may be rejected.")
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(url, json=data, timeout=timeout)
+            resp = await client.post(url, json=data, headers=headers, timeout=timeout)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -238,8 +249,8 @@ async def aleph_deposit(
         },
     }
 
-    # Try standard spec endpoint, fallback to v1
-    result = await _http_post(f"{base}/memories", payload)
+    # Try standard spec endpoint with API key auth, fallback to v1
+    result = await _http_post(f"{base}/memories", payload, authenticated=True)
     if result is None:
         # Fallback: try the older /aleph/v1/deposit endpoint
         hash_input = f"{aid}:{content}:1"
@@ -258,7 +269,7 @@ async def aleph_deposit(
                 "version": 1,
             }
         }
-        result = await _http_post(f"{base}/aleph/v1/deposit", v1_payload)
+        result = await _http_post(f"{base}/aleph/v1/deposit", v1_payload, authenticated=True)
 
     if result is None:
         return f"Deposit failed. Node at {base} may be offline."
@@ -424,6 +435,39 @@ async def aleph_health(node_url: str = "") -> str:
         f"Status: {result.get('status', '?')}\n"
         f"Uptime: {result.get('uptime', '?')}s\n"
         f"Version: {result.get('version', '?')}"
+    )
+
+
+# ── Tool: Local Node Status ──────────────────────────────────
+
+@mcp.tool()
+async def aleph_local_status(port: int = 0) -> str:
+    """Check the status of the local ALEPH node (local_node.py) running alongside this agent.
+
+    The local node bridges this agent's Mycelial Mesh context with the main library.
+    Run local_node.py to start it before calling this.
+
+    Args:
+        port: Local node port (defaults to ALEPH_LOCAL_PORT env var, then 8766)
+    """
+    p    = port or LOCAL_NODE_PORT
+    url  = f"http://127.0.0.1:{p}/status"
+    data = await _http_get(url, timeout=3.0)
+    if data is None:
+        return (
+            f"Local ALEPH node is not running on port {p}.\n"
+            f"Start it with: ALEPH_API_KEY=<key> python local_node.py"
+        )
+    corpus = data.get("local_corpus", {})
+    ls     = data.get("library_standing", {})
+    return (
+        f"Local Node: {data.get('agent_id')}\n"
+        f"Session:    {data.get('session_id')}\n"
+        f"Uptime:     {data.get('uptime')}s\n"
+        f"Library:    {data.get('library')}\n"
+        f"Corpus:     {corpus.get('total',0)} chunks "
+        f"({corpus.get('push_eligible',0)} push-eligible)\n"
+        f"Standing:   {ls.get('score',0)} ({ls.get('tier','bootstrap')})"
     )
 
 
