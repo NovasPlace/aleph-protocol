@@ -419,7 +419,7 @@ select option { background: var(--surface2); }
     <div id="keys-error" class="alert error"></div>
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)">
       <table class="table">
-        <thead><tr><th>Preview</th><th>Agent ID</th><th>Label</th><th>Admin</th><th>Created</th><th>Last Used</th><th></th></tr></thead>
+        <thead><tr><th>Preview</th><th>Agent ID</th><th>Label</th><th>Status</th><th>Created</th><th>Last Used</th><th></th></tr></thead>
         <tbody id="keys-body"><tr><td colspan="7" style="color:var(--muted);text-align:center;padding:24px">–</td></tr></tbody>
       </table>
     </div>
@@ -713,13 +713,13 @@ async function loadKeys() {
     document.getElementById('keys-body').innerHTML = keys.length
       ? keys.map(k => `
         <tr>
-          <td><span class="mono">${k.key_preview}</span></td>
+          <td><span class="mono">${k.key_preview || '–'}</span></td>
           <td><span class="mono">${k.agent_id}</span></td>
           <td><span style="color:var(--muted)">${k.label}</span></td>
-          <td>${k.is_admin ? '✓' : ''}</td>
+          <td><span class="badge ${k.status === 'active' ? 'badge-trusted' : 'badge-bootstrap'}">${k.status}</span></td>
           <td style="color:var(--muted)">${k.created_at ? new Date(k.created_at*1000).toLocaleDateString() : '–'}</td>
           <td style="color:var(--muted)">${k.last_used ? new Date(k.last_used*1000).toLocaleDateString() : '–'}</td>
-          <td>${k.agent_id!=='admin' ? `<button class="btn btn-danger btn-sm" onclick="revokeKey('${k.key_preview}')">Revoke</button>` : ''}</td>
+          <td>${k.agent_id!=='admin' && k.status==='active' ? `<button class="btn btn-danger btn-sm" onclick="revokeKey('${k.agent_id.replace(/'/g, "\\'")}')">Revoke</button>` : ''}</td>
         </tr>`).join('')
       : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No keys yet.</td></tr>`;
   } catch(e) {
@@ -745,10 +745,10 @@ async function generateKey() {
   } catch(e) { alert(e.message); }
 }
 
-async function revokeKey(preview) {
-  if (!confirm(`Revoke key ${preview}?`)) return;
+async function revokeKey(agent_id) {
+  if (!confirm(`Revoke key for agent: ${agent_id}?`)) return;
   try {
-    const r = await fetch(`${NODE}/keys/${preview}`, {
+    const r = await fetch(`${NODE}/keys/${encodeURIComponent(agent_id)}`, {
       method:'DELETE', headers:{'X-API-Key':_adminKey}
     });
     if (!r.ok) { const j=await r.json(); alert(j.detail||'Error'); return; }
