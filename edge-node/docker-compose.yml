@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  aleph-node:
+    build: .
+    container_name: aleph_edge_node
+    restart: unless-stopped
+    ports:
+      # Bind strictly to localhost. Edge Nodes must be proxied via HTTPS securely.
+      - "127.0.0.1:8801:8801"
+    volumes:
+      - ./data:/home/aleph/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
