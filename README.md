@@ -1,95 +1,64 @@
-# ALEPH Protocol
+# Nodeus — Autonomous Memory Engine
 
-**Federated Knowledge Infrastructure for Autonomous Agents**
+**Zero-Friction Context Persistence for Autonomous Agents**
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19157538.svg)](https://zenodo.org/records/19157538)
+[![Status: v1.0.0](https://img.shields.io/badge/Nodeus-v1.0.0-4ade80.svg)](nodeus-openapi.yaml)
+[![Protocol: ALEPH v0.1](https://img.shields.io/badge/Protocol-ALEPH--v0.1-blue.svg)](https://zenodo.org/records/19157538)
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
-[![Protocol: v0.1](https://img.shields.io/badge/Protocol-v0.1-4ade80.svg)](.well-known/agent-library.json)
 
-> *"A point in space that contains all other points."* — Jorge Luis Borges, The Aleph (1945)
+> *"A memory that contains all memories."* 
 
 ---
 
-## What is ALEPH?
+## What is Nodeus?
 
-ALEPH (Autonomous Library for Episodic and Heterogeneous Knowledge) is an open protocol for agent-native federated knowledge. Agents discover, query, deposit, and federate structured knowledge without human intermediation.
+Nodeus is a lightweight, self-hosted memory management engine for autonomous agents (NexusCore, OpenHands, AutoGPT). It solves the problem of context window bloat by providing a persistent, searchable episodic ledger that agents query as a native REST API.
 
-**The problem it solves:** The majority of the internet is actively hostile to autonomous agents. Every agent builder independently solves the same access problem. All research work dies in the context window. Nobody built the library agents actually need — until now.
+**Why Use Nodeus?**
+Stop stuffing random JSON dumps and `.txt` files into your LLM's context window. Instead, give your agent a **Nodeus Node**. Your agent stores its findings, task history, and episodic states via `/memories`, and retrieves them semantically as needed.
 
-## Deployment: Running an Edge Node
+## Quickstart: Deploying the Engine
 
-To spin up a Sovereign Edge Node and start federating with the ALEPH mesh, use the official Docker orchestrator. The edge node is purposely separated from the static UI files to provide maximum security.
-
-### One-Command Setup
+Nodeus runs as a secure Docker container, ensuring your memory shards are isolated and persistent.
 
 ```bash
-git clone https://github.com/novasplace/aleph-protocol.git
-cd aleph-protocol/edge-node
+git clone https://github.com/novasplace/nodeus-memory.git
+cd nodeus-memory
+chmod +x setup.sh
 ./setup.sh
 ```
 
 **What the setup script does:**
-1. Generates a mathematically secure `ALEPH_ROOT_SEED`.
-2. Spins up an Alpine-based `python:3.12` Docker container running FastAPI and Uvicorn as a non-root user.
-3. Binds the internal port perfectly to `127.0.0.1:8801`.
+1. Generates a mathematically secure `NODEUS_ROOT_SEED`.
+2. Spins up the Nodeus Alpine Engine (Python 3.12 + SQLite + FTS Indexing).
+3. Binds the interface perfectly to `127.0.0.1:8801`.
 
 ### ⚠️ Security Notice: Reverse Proxies
-The container exposes the mesh securely on localhost. **Do not bind it to `0.0.0.0` directly.** You must route traffic via a reverse proxy (e.g. Nginx or Caddy) over **HTTPS (TLS)** to ensure zero-trust HTTP headers (`X-API-Key`) cannot be intercepted across the mesh.
+Nodeus enforces zero-trust headers. **Do not bind to `0.0.0.0` directly.** You must route traffic via a reverse proxy (e.g. Caddy or Nginx) over **HTTPS** to protect your agent's API keys during mesh synchronization.
 
-### Administration UI
-To manage your new node, open `viewer.html` in your browser. 
+### Administration & View
+To inspect your memories, open `viewer.html` in your browser. 
 1. Click **Host Dropdown** > **Manage Nodes...**
-2. Add your Node's URL.
-3. Paste the `ALEPH_ROOT_SEED` output by `setup.sh` as the X-API-Key to securely manage agent configurations.
+2. Add your Node's local URL.
+3. Paste the Administrative Seed output by `setup.sh` to manage configuration.
 
 ---
 
-## Technical Specifications (v0.1)
+## Developer API (OpenAPI)
 
-Full protocol specification: **[DOI 10.5281/zenodo.19157538](https://zenodo.org/records/19157538)**
+Nodeus is designed to be injected directly into agent logic. For building your own integrations, reference: **[`nodeus-openapi.yaml`](nodeus-openapi.yaml)**
 
-### Core Endpoints
+### Core Interface
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/.well-known/agent-library.json` | Node discovery |
-| `POST` | `/aleph/v1/query` | Full-text chunk search |
-| `POST` | `/aleph/v1/deposit` | Deposit a knowledge chunk |
-| `GET` | `/aleph/v1/peers` | Federation peer list |
-| `GET` | `/aleph/v1/chunk/:id` | Retrieve chunk by ID |
-
-### Knowledge Chunk Format (ChunkForge v2)
-
-```json
-{
-  "chunk_id": "sha256:<hash>",
-  "agent_id": "namespace/name@version",
-  "type": "factual | procedural | episodic | semantic | code",
-  "content": "string",
-  "tags": ["string"],
-  "provenance": {
-    "source": "<uri or description>",
-    "retrieved_at": 1742600000,
-    "confidence": 0.9
-  },
-  "version": 1,
-  "parent_chunk_id": null,
-  "deposited_at": 1742600000
-}
-```
-
-## Reputation Tiers
-| Balance | Tier | Queries/day | Deposits/day |
-|---------|------|-------------|--------------|
-| 0–9 | Bootstrap | 10 | 0 |
-| 10–99 | Contributor | 100 | 50 |
-| 100–999 | Established | 1,000 | 500 |
-| 1000+ | Trusted | Unlimited | Unlimited |
-
-Reputation is earned through deposits. Non-transferable. Non-purchasable.
+| `POST` | `/memories` | Store structured memory (automatic ChunkForge wrapping) |
+| `POST` | `/memories/search` | Semantic context retrieval (BM25 + FTS) |
+| `POST` | `/keys` | Provision credentials for a new agent daemon |
+| `GET` | `/health` | Verify engine status |
 
 ## Design Principles
-1. **Agents are first-class** — programmatic access only, no human UI required.
-2. **Contribution before extraction** — deposits earn access weight.
-3. **Provenance is mandatory** — SHA-256 hash + source + agent_id on every chunk.
-4. **No central authority** — federated, any node can join via Edge deployment.
+1. **Context Window Protection** — offload long-term memory to a dedicated node.
+2. **Namespace Isolation** — unique API keys per agent keep episodic memories isolated.
+3. **Implicit Protocol Compliance** — Nodeus is fully compatible with the ALEPH Federated Protocol (Federation syncs silently in the background).
+4. **Agent-First** — optimized for programmatic REST access, with zero human friction.

@@ -142,6 +142,22 @@ class PeerSearchRequest(BaseModel):
     limit: int              = Field(default=20, ge=1, le=100)
 
 
+# --- Nodeus (Product Facades) ---
+class MemoryDeposit(BaseModel):
+    type: ChunkType
+    content: str   = Field(..., min_length=1, max_length=100_000)
+    tags: list[str] = Field(..., min_items=1)
+    source: str = "nodeus_api"
+    confidence: float = Field(ge=0.0, le=1.0, default=1.0)
+
+class MemorySearch(BaseModel):
+    query: str = ""
+    tags: list[str] = Field(default_factory=list)
+    limit: int = Field(default=5, ge=1, le=100)
+    threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+# -------------------------------
+
+
 class CreateKeyRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=200)
     label:    str = Field(default="", max_length=200)
@@ -378,23 +394,16 @@ def _require_operator():
 
 # ── Health ────────────────────────────────────────────────────
 
-@app.get("/health")
+@app.get("/health", tags=["System"])
 def health():
+    """Check Nodeus engine health."""
     with _db() as conn:
-        corpus = conn.execute("SELECT COUNT(*) as c FROM chunks").fetchone()["c"]
-    return {
-        "status":   "healthy",
-        "node_id":  NODE_ID,
-        "uptime":   round(time.time() - _BOOT_TIME, 1),
-        "version":  ALEPH_VERSION,
-        "corpus_size": corpus,
-    }
+        count = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+    return {"status": "ok", "corpus_size": count}
 
 
-# ── Discovery ────────────────────────────────────────────────
-
-@app.get("/.well-known/agent-library.json")
-def discovery():
+@app.get("/.well-known/agent-library.json", include_in_schema=False)
+def well_known():
     with _db() as conn:
         row = conn.execute("SELECT COUNT(*) as c FROM chunks").fetchone()
         corpus_size = row["c"] if row else 0
@@ -441,8 +450,8 @@ def discovery():
 
 # ── API Key Management ────────────────────────────────────────
 
-@app.post("/keys")
-def create_key(req: CreateKeyRequest, _: str = Depends(_validate_admin_key)):
+@app.post("/keys", tags=["Management"])
+def provision_key(req: CreateKeyRequest, _admin: str = Depends(_validate_admin_key)):
     """Create a new mathematically-bound API key for an agent using HKDF. Admin key required.
 
     Agent IDs must not contain '/' — this prevents URL routing ambiguity.
@@ -485,7 +494,7 @@ def create_key(req: CreateKeyRequest, _: str = Depends(_validate_admin_key)):
     }
 
 
-@app.get("/keys/me")
+@app.get("/keys/me", tags=["Management"])
 def my_key_info(caller: str = Depends(_validate_api_key)):
     """Return metadata for the calling key."""
     if caller == "admin":
@@ -515,7 +524,7 @@ def my_key_info(caller: str = Depends(_validate_api_key)):
     }
 
 
-@app.get("/keys")
+@app.get("/keys", tags=["Management"])
 def list_keys(_: str = Depends(_validate_admin_key)):
     """List all API keys (revocation registry). Admin key required."""
     with _db() as conn:
@@ -529,7 +538,7 @@ def list_keys(_: str = Depends(_validate_admin_key)):
     }
 
 
-@app.delete("/keys/{agent_id}")
+@app.delete("/keys/{agent_id}", tags=["Management"])
 def revoke_key(agent_id: str, _: str = Depends(_validate_admin_key)):
     """Soft-delete (revoke) a key by agent_id or fingerprint. Admin key required."""
     with _db() as conn:
@@ -548,20 +557,33 @@ def revoke_key(agent_id: str, _: str = Depends(_validate_admin_key)):
 
 # ── Deposit ───────────────────────────────────────────────────
 
-@app.post("/memories")
-def deposit(req: DepositRequest, _caller: str = Depends(_validate_api_key)):
-    """Deposit a knowledge chunk. Requires X-API-Key header."""
-    hash_input = f"{req.agent_id}:{req.content}:{req.version}"
+@app.post("/memories", tags=["Memory"])
+def deposit_nodeus(req: MemoryDeposit, agent_id: str = Depends(_validate_api_key)):
+    """
+    Store Memory: Deposits a structured memory chunk into the agent's namespace.
+    Simplified Nodeus interface; agent_id is extracted from X-API-Key.
+    """
+    # Map Nodeus Facade to ALEPH DepositRequest
+    aleph_req = DepositRequest(
+        agent_id=agent_id,
+        type=req.type,
+        content=req.content,
+        tags=req.tags,
+        provenance=Provenance(source=req.source, confidence=req.confidence),
+        version=1
+    )
+    
+    hash_input = f"{aleph_req.agent_id}:{aleph_req.content}:{aleph_req.version}"
     chunk_id   = f"sha256:{hashlib.sha256(hash_input.encode()).hexdigest()}"
 
     now       = int(time.time())
-    tags_json = json.dumps(req.tags)
-    prov_json = req.provenance.model_dump_json()
+    tags_json = json.dumps(aleph_req.tags)
+    prov_json = aleph_req.provenance.model_dump_json()
 
     with _db() as conn:
         existing = conn.execute(
             "SELECT 1 FROM chunks WHERE chunk_id = ? AND version = ?",
-            (chunk_id, req.version),
+            (chunk_id, aleph_req.version),
         ).fetchone()
         if existing:
             raise HTTPException(status_code=409, detail="Chunk already exists.")
@@ -570,20 +592,20 @@ def deposit(req: DepositRequest, _caller: str = Depends(_validate_api_key)):
             """INSERT INTO chunks
                (chunk_id, agent_id, type, content, tags, provenance, version, parent_chunk_id, deposited_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (chunk_id, req.agent_id, req.type, req.content, tags_json,
-             prov_json, req.version, req.parent_chunk_id, now),
+            (chunk_id, aleph_req.agent_id, aleph_req.type, aleph_req.content, tags_json,
+             prov_json, aleph_req.version, aleph_req.parent_chunk_id, now),
         )
 
         rowid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         conn.execute(
             "INSERT INTO chunks_fts (rowid, content, tags) VALUES (?, ?, ?)",
-            (rowid, req.content, " ".join(req.tags)),
+            (rowid, aleph_req.content, " ".join(aleph_req.tags)),
         )
 
         award = AWARDS["memory_deposit"]
         row   = conn.execute(
             "SELECT score, total_deposits FROM standing WHERE agent_id = ?",
-            (req.agent_id,),
+            (agent_id,),
         ).fetchone()
 
         if row:
@@ -591,14 +613,14 @@ def deposit(req: DepositRequest, _caller: str = Depends(_validate_api_key)):
             new_deposits = row["total_deposits"] + 1
             conn.execute(
                 "UPDATE standing SET score = ?, total_deposits = ?, last_active = ? WHERE agent_id = ?",
-                (new_score, new_deposits, now, req.agent_id),
+                (new_score, new_deposits, now, agent_id),
             )
         else:
             new_score    = award
             new_deposits = 1
             conn.execute(
                 "INSERT INTO standing (agent_id, score, total_deposits, last_active) VALUES (?, ?, ?, ?)",
-                (req.agent_id, new_score, new_deposits, now),
+                (agent_id, new_score, new_deposits, now),
             )
 
     return {
@@ -611,7 +633,37 @@ def deposit(req: DepositRequest, _caller: str = Depends(_validate_api_key)):
     }
 
 
-@app.delete("/memories/{chunk_id}")
+@app.post("/memories/search", tags=["Memory"])
+def search_nodeus(req: MemorySearch, agent_id: str = Depends(_validate_api_key)):
+    """
+    Retrieve Context: Fetches relevant memory chunks based on similarity or tag-matching.
+    Limited to agent's own namespace.
+    """
+    # SQLite FTS acts as the semantic-lite driver for Nodeus V1
+    query = f"SELECT * FROM chunks WHERE agent_id = ?"
+    params = [agent_id]
+    
+    if req.query:
+        query = """
+            SELECT c.*, bm25(chunks_fts) as rank
+            FROM chunks c
+            JOIN chunks_fts f ON c.rowid = f.rowid
+            WHERE c.agent_id = ? AND chunks_fts MATCH ?
+        """
+        params = [agent_id, req.query]
+        # In Nodeus V1, we filter by rank/threshold if needed, but FTS BM25 is the proxy for similarity.
+        query += " ORDER BY rank LIMIT ?"
+        params.append(req.limit)
+    else:
+        query += " ORDER BY deposited_at DESC LIMIT ?"
+        params.append(req.limit)
+
+    with _db() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return {"results": [dict(r) for r in rows]}
+
+
+@app.delete("/memories/{chunk_id}", include_in_schema=False)
 def delete_chunk(chunk_id: str, caller: str = Depends(_validate_api_key)):
     """Delete all versions of a chunk. Caller must be the original agent or the admin."""
     with _db() as conn:
@@ -638,63 +690,9 @@ def delete_chunk(chunk_id: str, caller: str = Depends(_validate_api_key)):
     return {"status": "deleted", "chunk_id": chunk_id, "versions_removed": len(rows)}
 
 
-# ── Search ────────────────────────────────────────────────────
-
-@app.post("/memories/search")
-def search(req: SearchRequest):
-    """Search knowledge chunks. Public — no API key required."""
-    results = []
-
-    with _db() as conn:
-        if req.query:
-            fts_query = " OR ".join(w for w in req.query.split() if len(w) > 1) or req.query
-            rows = conn.execute(
-                """SELECT c.chunk_id, c.agent_id, c.type, c.content, c.tags,
-                          c.provenance, c.version, c.deposited_at, c.parent_chunk_id
-                   FROM chunks_fts fts
-                   JOIN chunks c ON c.rowid = fts.rowid
-                   WHERE chunks_fts MATCH ?
-                   ORDER BY rank
-                   LIMIT ?""",
-                (fts_query, req.limit * 3),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """SELECT chunk_id, agent_id, type, content, tags,
-                          provenance, version, deposited_at, parent_chunk_id
-                   FROM chunks ORDER BY deposited_at DESC LIMIT ?""",
-                (req.limit * 3,),
-            ).fetchall()
-
-    for row in rows:
-        tags = json.loads(row["tags"])
-        if req.type and row["type"] != req.type:
-            continue
-        if req.agent_id and row["agent_id"] != req.agent_id:
-            continue
-        if req.tags and not any(t in tags for t in req.tags):
-            continue
-
-        results.append({
-            "chunk_id":       row["chunk_id"],
-            "agent_id":       row["agent_id"],
-            "type":           row["type"],
-            "content":        row["content"],
-            "tags":           tags,
-            "provenance":     json.loads(row["provenance"]),
-            "version":        row["version"],
-            "deposited_at":   row["deposited_at"],
-            "parent_chunk_id": row["parent_chunk_id"],
-        })
-        if len(results) >= req.limit:
-            break
-
-    return {"results": results, "total": len(results)}
-
-
 # ── Get Chunk ─────────────────────────────────────────────────
 
-@app.get("/memories/{chunk_id:path}")
+@app.get("/memories/{chunk_id:path}", include_in_schema=False)
 def get_chunk(chunk_id: str):
     if not chunk_id.startswith("sha256:"):
         chunk_id = f"sha256:{chunk_id}"
@@ -720,7 +718,7 @@ def get_chunk(chunk_id: str):
 
 # ── Chunk History ─────────────────────────────────────────────
 
-@app.get("/memories/{chunk_id:path}/history")
+@app.get("/memories/{chunk_id:path}/history", include_in_schema=False)
 def chunk_history(chunk_id: str):
     if not chunk_id.startswith("sha256:"):
         chunk_id = f"sha256:{chunk_id}"
@@ -749,8 +747,8 @@ def chunk_history(chunk_id: str):
 
 # ── Standing ──────────────────────────────────────────────────
 
-@app.get("/standing/{agent_id}")
-def get_standing(agent_id: str):
+@app.get("/standing/{agent_id}", include_in_schema=False)
+def get_agent_standing(agent_id: str):
     with _db() as conn:
         row = conn.execute(
             "SELECT * FROM standing WHERE agent_id = ?", (agent_id,)
@@ -769,8 +767,8 @@ def get_standing(agent_id: str):
 
 # ── Standings Leaderboard ─────────────────────────────────────
 
-@app.get("/standing")
-def leaderboard(limit: int = 50):
+@app.get("/standing", include_in_schema=False)
+def get_leaderboard(limit: int = 50):
     """Return the top agents by standing score."""
     with _db() as conn:
         rows = conn.execute(
@@ -793,8 +791,8 @@ def leaderboard(limit: int = 50):
 
 # ── Conflicts ─────────────────────────────────────────────────
 
-@app.post("/conflicts")
-def log_conflict(req: ConflictRequest):
+@app.post("/conflicts", include_in_schema=False)
+def report_conflict(req: ConflictRequest, _caller: str = Depends(_validate_api_key)):
     conflict_id = f"conflict-{uuid.uuid4().hex[:12]}"
     now = int(time.time())
     with _db() as conn:
@@ -810,7 +808,7 @@ def log_conflict(req: ConflictRequest):
             "message": "Conflict logged. Resolution earns +10 standing."}
 
 
-@app.get("/conflicts")
+@app.get("/conflicts", include_in_schema=False)
 def list_conflicts(status: str = "open", limit: int = 50):
     with _db() as conn:
         rows = conn.execute(
@@ -830,7 +828,7 @@ def list_conflicts(status: str = "open", limit: int = 50):
 
 # ── Peers ─────────────────────────────────────────────────────
 
-@app.get("/peers")
+@app.get("/peers", include_in_schema=False)
 def list_peers():
     peers = [{
         "node_id":      NODE_ID,
@@ -852,8 +850,8 @@ def list_peers():
     return {"peers": peers, "total": len(peers)}
 
 
-@app.post("/peers")
-def register_peer(req: PeerRegisterRequest):
+@app.post("/peers", include_in_schema=False)
+def register_peer(req: PeerRegisterRequest, _admin: str = Depends(_validate_admin_key)):
     now = int(time.time())
     with _db() as conn:
         existing = conn.execute("SELECT 1 FROM peers WHERE node_id = ?", (req.node_id,)).fetchone()

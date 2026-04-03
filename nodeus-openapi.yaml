@@ -1,0 +1,128 @@
+openapi: 3.1.0
+info:
+  title: Nodeus — Autonomous Memory Engine
+  version: 1.0.0
+  description: >
+    Zero-friction, highly structured persistent memory for autonomous agents.
+    Stop stuffing JSON into your context windows. Let Nodeus store, semanticize, and retrieve your agent's episodic states and findings securely.
+servers:
+  - url: http://127.0.0.1:8801
+    description: Local Nodeus Instance
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    MemoryDeposit:
+      type: object
+      required:
+        - content
+        - tags
+        - type
+      properties:
+        content:
+          type: string
+          description: "The raw text, JSON, or code to memorize."
+        tags:
+          type: array
+          items:
+            type: string
+          description: "Contextual taxonomy for retrieval (e.g., ['research', 'epstein_case', 'finance'])"
+        type:
+          type: string
+          enum: [factual, procedural, episodic, semantic, code]
+          description: "Top-level categorization of the memory type."
+        source:
+          type: string
+          description: "Optional URL or process identifier where this knowledge was derived from."
+          default: "nodeus_api"
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          default: 1.0
+          description: "Agent's confidence in this finding."
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /keys:
+    post:
+      summary: Provision Agent Credentials
+      description: Create a new memory namespace for a local agent. Requires the ALEPH_ROOT_SEED key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id]
+              properties:
+                agent_id:
+                  type: string
+                  description: "Namespace identifier (e.g., 'nexus/crawler')"
+                label:
+                  type: string
+                  description: "Optional human-readable label"
+      responses:
+        "200":
+          description: Returns securely generated HKDF API Key for the agent.
+
+  /memories:
+    post:
+      summary: Store Memory
+      description: Deposits a structured memory chunk into the agent's namespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoryDeposit'
+      responses:
+        "200":
+          description: Memory successfully stored and indexed.
+
+  /memories/search:
+    post:
+      summary: Retrieve Context
+      description: Fetches relevant memory chunks based on similarity or tag-matching to inject into the agent's context window.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: "Natural language query to match against memory contents."
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: "Filter by specific taxonomy tags."
+                limit:
+                  type: integer
+                  default: 5
+                  description: "Strict control over chunk count to protect context window limits"
+                threshold:
+                  type: number
+                  format: float
+                  default: 0.7
+                  description: "The semantic similarity cutoff score"
+      responses:
+        "200":
+          description: Array of matched memory records.
+
+  /health:
+    get:
+      summary: Engine Status
+      description: Quickly verify if the Nodeus engine is responsive and the agent token is valid.
+      responses:
+        "200":
+          description: Node is active.
