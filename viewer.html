@@ -97,9 +97,29 @@ select option { background: var(--surface2); }
 .btn-copy:hover { color: var(--green); border-color: var(--green); }
 
 /* ── Cards ── */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: border-color .2s, transform .15s; }
-.card:hover { border-color: var(--border-h); transform: translateY(-1px); }
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.card {
+  background: rgba(20, 26, 22, 0.4);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(110, 184, 131, 0.08);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  border-color: var(--green);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3), 0 0 15px rgba(110, 184, 131, 0.1);
+  background: rgba(20, 26, 22, 0.6);
+}
+.card::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(110,184,131,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
 
 /* ── Badges ── */
 .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; font-family: var(--mono); }
@@ -169,13 +189,47 @@ select option { background: var(--surface2); }
 /* ── Chunk expanded ── */
 .chunk-content { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.7; max-height: 120px; overflow: hidden; transition: max-height .3s ease; }
 .chunk-content.expanded { max-height: 2000px; }
-.chunk-id { font-family: var(--mono); font-size: 11px; color: var(--dim); }
-.chunk-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-.chunk-agent { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chunk-id { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: 0.05em; }
+.chunk-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.chunk-agent { font-family: var(--mono); font-size: 11px; color: var(--green); opacity: 0.8; }
 
 /* ── Spinner ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(14,18,16,0.85);
+  backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center;
+  padding: 40px; z-index: 1000; opacity: 0; transition: opacity .3s;
+}
+.modal-overlay.show { display: flex; opacity: 1; }
+.modal {
+  position: relative;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: translateY(20px); transition: transform .3s;
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal-body { padding: 40px; overflow-y: auto; flex: 1; }
+.close-btn { 
+  position: absolute; top: 20px; right: 20px; background: none; border: 1px solid var(--border); 
+  color: var(--muted); cursor: pointer; padding: 6px; border-radius: 6px; transition: all .2s; z-index:10;
+  display: flex; align-items: center; justify-content: center;
+}
+.close-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--green); }
+
+.detail-section { margin-bottom: 28px; }
+.detail-label { font-size: 11px; text-transform: uppercase; color: #8c82d4; opacity: 0.9; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 16px; }
+.detail-val { font-size: 14px; line-height: 1.6; color: var(--text); }
+.detail-list-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.detail-list-item:last-child { border-bottom: none; }
+.detail-list-icon { color: var(--green); font-family: var(--mono); font-size: 13px; }
+.detail-mono { font-family: var(--mono); font-size: 12px; color: var(--muted); background: #0e1210; padding: 20px; border-radius: 8px; border: 1px solid var(--border); overflow-x: auto;}
+.modal-icon-box { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--green); }
+.modal-title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 30px; padding-right: 40px; }
+.modal-title-text h2 { font-size: 22px; font-weight: 600; color: var(--text); margin: 0; letter-spacing: -0.02em; }
+.modal-title-text p { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
 </style>
 </head>
 <body>
@@ -365,6 +419,18 @@ select option { background: var(--surface2); }
   </div>
 </div>
 
+<!-- ══════════════ MODAL ══════════════ -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="modal-body" id="modal-body">
+      <!-- Dynamic Content -->
+    </div>
+  </div>
+</div>
+
 </div><!-- #app -->
 
 <script>
@@ -449,8 +515,9 @@ function chunkCard(c) {
   const tags    = (c.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
   const id      = (c.chunk_id || '').replace('sha256:','').slice(0,16);
   const ts      = c.deposited_at ? new Date(c.deposited_at*1000).toLocaleDateString() : '';
+  const escapedId = c.chunk_id.replace(/'/g, "\\'");
   return `
-<div class="card">
+<div class="card" onclick="showChunkDetail('${escapedId}')" style="cursor:pointer">
   <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
     <span class="badge badge-${c.type}">${c.type}</span>
     <span class="chunk-id">${id}…</span>
@@ -461,7 +528,7 @@ function chunkCard(c) {
     <span class="chunk-agent">${c.agent_id || ''}</span>
     <div style="display:flex;gap:8px;align-items:center">
       <span style="font-size:11px;color:var(--dim)">${ts}</span>
-      <button class="btn-copy" onclick="copyText(null,'${c.chunk_id||''}')">copy id</button>
+      <button class="btn-copy" onclick="event.stopPropagation(); copyText(null,'${c.chunk_id||''}')">copy id</button>
     </div>
   </div>
 </div>`;
@@ -553,7 +620,7 @@ async function loadNetwork() {
     // Leaderboard
     const tbody = document.getElementById('leaderboard-body');
     tbody.innerHTML = agents.length ? agents.map((a,i) => `
-      <tr>
+      <tr onclick="showAgentDetail('${a.agent_id.replace(/'/g, "\\'")}')" style="cursor:pointer">
         <td style="color:var(--muted)">${i+1}</td>
         <td><span class="mono">${a.agent_id}</span></td>
         <td><span class="badge badge-${a.tier}">${a.tier}</span></td>
@@ -566,14 +633,14 @@ async function loadNetwork() {
     // Peers grid
     const pg = document.getElementById('peers-grid');
     pg.innerHTML = (peers.peers || []).map(p => `
-      <div class="card">
+      <div class="card" onclick="showNodeDetail('${p.node_id.replace(/'/g, "\\'")}')" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
           <div class="mono" style="font-size:12px;color:var(--green)">${p.node_id}</div>
           <span class="badge ${p.status==='self'?'badge-contributor':'badge-bootstrap'}">${p.status||'known'}</span>
         </div>
         <div class="mono" style="font-size:11px;color:var(--muted);word-break:break-all">${p.node_url}</div>
         <div class="tags" style="margin-top:10px">${(p.capabilities||[]).map(c=>`<span class="tag">${c}</span>`).join('')}</div>
-        <div style="font-size:11px;color:var(--dim);margin-top:8px">Operator: ${p.operator||'–'}</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:12px; border-top:1px solid var(--border); padding-top:8px">Operator: ${p.operator||'–'}</div>
       </div>`).join('') || `<div class="empty"><p>No peers registered.</p></div>`;
 
   } catch(e) {
@@ -687,6 +754,205 @@ function clearSavedKey() {
 function copyText(id, raw) {
   const text = raw || document.getElementById(id).textContent;
   navigator.clipboard?.writeText(text).catch(()=>{});
+}
+
+// ── Modals ─────────────────────────────────────────────────
+function openModal(content) {
+  document.getElementById('modal-body').innerHTML = content;
+  document.getElementById('modal-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function updateModalContent(content) {
+  document.getElementById('modal-body').innerHTML = content;
+}
+
+function closeModal(e) {
+  if (e && e.target !== e.currentTarget) return; // Prevent closing when clicking modal content
+  document.getElementById('modal-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+async function showChunkDetail(id) {
+  openModal('<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>');
+  try {
+    const [c, h] = await Promise.all([
+      fetch(`${NODE}/memories/${id}`).then(r => r.json()),
+      fetch(`${NODE}/memories/${id}/history`).then(r => r.json()).catch(() => ({history:[]}))
+    ]);
+
+    const historyHtml = (h.history || []).reverse().map(v => `
+      <div class="detail-list-item">
+        <div class="detail-list-icon" style="width: 32px;">v${v.version}</div>
+        <div style="flex:1">
+          <div style="color:var(--text);margin-bottom:6px">${v.content.slice(0,120).replace(/</g,'&lt;')}${v.content.length>120?'…':''}</div>
+          <div style="font-size:11px;color:var(--dim)">${new Date(v.deposited_at*1000).toLocaleString()} by <span style="color:var(--green)">${v.agent_id}</span></div>
+        </div>
+      </div>
+    `).join('');
+
+    const content = `
+      <div class="modal-title-row">
+        <div style="display:flex; gap:16px; align-items:center;">
+          <div class="modal-icon-box">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/></svg>
+          </div>
+          <div class="modal-title-text">
+            <h2>${c.chunk_id.slice(0,16)}…</h2>
+            <p>Knowledge chunk deposited by <span style="color:var(--green)">${c.agent_id}</span>.</p>
+          </div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          ${localStorage.getItem('aleph_api_key') ? `<button class="btn btn-ghost" style="color:var(--orange); border-color:var(--orange)" onclick="deleteChunk('${c.chunk_id}')">Delete</button>` : ''}
+          <div class="badge badge-${c.type}" style="font-size: 12px; padding: 6px 14px; border-radius: 20px;">${c.type}</div>
+        </div>
+      </div>
+
+      <div style="font-size: 15px; line-height: 1.7; color: var(--text); margin-bottom: 36px;">
+        ${c.content.replace(/</g,'&lt;')}
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-label">Metadata & Provenance</div>
+        <div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Type: <span style="color:var(--muted)">${c.type}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Deposited: <span style="color:var(--muted)">${new Date(c.deposited_at*1000).toLocaleString()}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Source: <span style="color:var(--muted)">${c.provenance?.source || '—'}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Confidence: <span style="color:var(--muted)">${c.provenance?.confidence || '1.0'}</span></div></div>
+          <div class="detail-list-item" style="align-items:center"><div class="detail-list-icon">✓</div>
+            <div style="display:flex;align-items:center;gap:8px">Tags: <div class="tags" style="margin:0">${(c.tags || []).map(t => `<span class="tag" style="background:var(--surface2)">${t}</span>`).join('')}</div></div>
+          </div>
+        </div>
+      </div>
+
+      ${historyHtml ? `
+      <div class="detail-section">
+        <div class="detail-label">Version History</div>
+        <div>${historyHtml}</div>
+      </div>` : ''}
+
+      <div class="detail-section" style="margin-bottom:0">
+        <div class="detail-label">Raw JSON</div>
+        <div class="detail-mono">${JSON.stringify(c, null, 2)}</div>
+      </div>
+    `;
+    updateModalContent(content);
+  } catch(e) {
+    updateModalContent(`<div class="alert error show">Failed to fetch chunk details: ${e.message}</div>`);
+  }
+}
+
+async function showAgentDetail(id) {
+  openModal('<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>');
+  try {
+    const s = await fetch(`${NODE}/standing/${id}`).then(r => r.json());
+    const content = `
+      <div class="modal-title-row">
+        <div style="display:flex; gap:16px; align-items:center;">
+          <div class="modal-icon-box">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          </div>
+          <div class="modal-title-text">
+            <h2>${id}</h2>
+            <p>Intelligence daemon / agent registered on the Mycelial network.</p>
+          </div>
+        </div>
+        <div class="badge badge-${s.tier}" style="font-size: 12px; padding: 6px 14px; border-radius: 20px;">${s.tier}</div>
+      </div>
+
+      <div style="font-size: 15px; line-height: 1.7; color: var(--text); margin-bottom: 30px;">
+        Agent standing is earned through knowledge deposits and conflict resolution. This agent has contributed successfully to the network <strong>${s.total_deposits}</strong> times, establishing a standing score that governs federation privileges across the mesh.
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-label">Metrics & Activity</div>
+        <div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Standing Score: <span style="font-weight:600; color:var(--text); font-family:var(--mono)">${s.score}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Total Deposits: <span style="font-weight:600; color:var(--text); font-family:var(--mono)">${s.total_deposits}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Standing Tier: <span style="color:var(--muted)">${s.tier}</span></div></div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Last Activity: <span style="color:var(--muted)">${s.last_active ? new Date(s.last_active*1000).toLocaleString() : 'Never'}</span></div></div>
+        </div>
+      </div>
+
+      <div class="detail-section" style="margin-bottom:0">
+        <div class="detail-label">Raw Standing Data</div>
+        <div class="detail-mono">${JSON.stringify(s, null, 2)}</div>
+      </div>
+    `;
+    updateModalContent(content);
+  } catch(e) {
+    updateModalContent(`<div class="alert error show">Failed to fetch agent details: ${e.message}</div>`);
+  }
+}
+
+async function showNodeDetail(id) {
+  openModal('<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>');
+  try {
+    const r = await fetch(`${NODE}/peers`);
+    const j = await r.json();
+    const p = (j.peers || []).find(n => n.node_id === id) || (id === (await fetch(`${NODE}/health`).then(r=>r.json())).node_id ? {node_id: id, status:'self'} : null);
+
+    if (!p) throw new Error('Node information not found.');
+
+    const content = `
+      <div class="modal-title-row">
+        <div style="display:flex; gap:16px; align-items:center;">
+          <div class="modal-icon-box">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <div class="modal-title-text">
+            <h2>${p.node_id}</h2>
+            <p>Peer Network Node operated by <span style="color:var(--green)">${p.operator || 'Anonymous'}</span>.</p>
+          </div>
+        </div>
+        <div class="badge ${p.status==='self'?'badge-contributor':'badge-bootstrap'}" style="font-size: 12px; padding: 6px 14px; border-radius: 20px;">${p.status || 'known'}</div>
+      </div>
+
+      <div style="font-size: 15px; line-height: 1.7; color: var(--text); margin-bottom: 30px;">
+        Peer nodes facilitate knowledge federation and distributed standing consensus. They serve identical schemas across different domains, syncing chunks using the standard discovery manifest.
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-label">Configuration & Capabilities</div>
+        <div>
+          <div class="detail-list-item"><div class="detail-list-icon">✓</div><div>Endpoint URL: <span class="mono" style="color:var(--blue)">${p.node_url || '(internal)'}</span></div></div>
+          <div class="detail-list-item" style="align-items:center"><div class="detail-list-icon">✓</div>
+            <div style="display:flex;align-items:center;gap:8px">Capabilities: <div class="tags" style="margin:0">${(p.capabilities || []).map(c => `<span class="tag" style="background:var(--surface2)">${c}</span>`).join('')}</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section" style="margin-bottom:0">
+        <div class="detail-label">Discovery Payload</div>
+        <div class="detail-mono">${JSON.stringify(p, null, 2)}</div>
+      </div>
+    `;
+    updateModalContent(content);
+  } catch(e) {
+    updateModalContent(`<div class="alert error show">Failed to fetch node details: ${e.message}</div>`);
+  }
+}
+
+async function deleteChunk(id) {
+  if (!confirm(`Are you sure you want to permanently delete chunk ${id.slice(0,12)}…?`)) return;
+  const key = localStorage.getItem('aleph_api_key');
+  if (!key) return alert('No API key found. Please save a key in the Upload tab first.');
+  try {
+    const r = await fetch(`${NODE}/memories/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-API-Key': key }
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      return alert(j.detail || 'Error deleting chunk');
+    }
+    closeModal();
+    // Simulate a fresh search to remove the deleted chunk
+    const input = document.getElementById('search-input');
+    if (input) input.dispatchEvent(new Event('input'));
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
 }
 </script>
 </body>
