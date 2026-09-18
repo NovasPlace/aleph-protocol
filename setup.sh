@@ -32,16 +32,26 @@ grep -q '^ALEPH_OPERATOR=' .env || echo "ALEPH_OPERATOR=${ALEPH_OPERATOR:-$(whoa
 grep -q '^ALEPH_NODE_URL=' .env || echo "ALEPH_NODE_URL=${ALEPH_NODE_URL:-http://localhost:8801}" >> .env
 grep -q '^ALEPH_DATA_DIR=' .env || echo "ALEPH_DATA_DIR=/home/aleph/data" >> .env
 grep -q '^DB_PATH=' .env || echo "DB_PATH=/home/aleph/data/aleph.db" >> .env
+grep -q '^ALEPH_FEDERATION_ENABLED=' .env || echo "ALEPH_FEDERATION_ENABLED=true" >> .env
+grep -q '^ALEPH_FEDERATION_INTERVAL=' .env || echo "ALEPH_FEDERATION_INTERVAL=60" >> .env
+grep -q '^ALEPH_SEED_PEERS=' .env || echo "ALEPH_SEED_PEERS=" >> .env
 
 echo "[*] Building and starting Nodeus Docker container..."
-docker-compose up --build -d
+if docker compose version >/dev/null 2>&1; then
+    docker compose up --build -d
+elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose up --build -d
+else
+    echo "❌ Docker Compose not found. Install the Docker Compose plugin or docker-compose."
+    exit 1
+fi
 
 echo ""
 echo "==========================================================="
 echo "✅ Nodeus Engine Deployed Successfully!"
 echo "==========================================================="
 echo "Network Context:"
-echo " → Peer discovery logic is running silently in the background."
+echo " → Federation is enabled; only explicitly configured peers are contacted."
 echo " → The node is bound strictly to: 127.0.0.1:8801"
 echo " → You MUST configure a reverse proxy (Nginx/Caddy) with HTTPS to expose it."
 echo ""
