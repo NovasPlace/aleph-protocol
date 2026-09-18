@@ -32,6 +32,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -40,10 +41,12 @@ import sqlite3
 import sys
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 import hmac
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -61,13 +64,23 @@ NODE_LABEL = os.getenv("ALEPH_LABEL",   "ALEPH Community Node")
 OPERATOR  = os.getenv("ALEPH_OPERATOR", "")
 PORT      = int(os.getenv("ALEPH_PORT", "8765"))
 DATA_DIR  = Path(os.getenv("ALEPH_DATA_DIR", "/data"))
-DB_PATH   = DATA_DIR / "aleph.db"
+DB_PATH   = Path(os.getenv("DB_PATH", str(DATA_DIR / "aleph.db")))
 
 ROOT_SEED = os.getenv("ALEPH_ROOT_SEED")
 
 SCHEMA_VERSION = "2026.1"
 ALEPH_VERSION  = "0.1"
-CAPABILITIES   = ["deposit", "query", "conflict", "standing", "peers", "keys"]
+CAPABILITIES   = ["deposit", "query", "conflict", "standing", "peers", "keys", "federation-pull"]
+
+FEDERATION_ENABLED = os.getenv("ALEPH_FEDERATION_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+FEDERATION_INTERVAL = max(15, int(os.getenv("ALEPH_FEDERATION_INTERVAL", "60")))
+FEDERATION_BATCH = min(1000, max(1, int(os.getenv("ALEPH_FEDERATION_BATCH", "200"))))
+FEDERATION_EXPORT_TAG = os.getenv("ALEPH_FEDERATION_EXPORT_TAG", "federate").strip() or "federate"
+SEED_PEERS = [
+    p.strip().rstrip("/")
+    for p in os.getenv("ALEPH_SEED_PEERS", "").split(",")
+    if p.strip()
+]
 
 _BOOT_TIME = time.time()
 
@@ -140,6 +153,10 @@ class PeerRegisterRequest(BaseModel):
 class PeerSearchRequest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     limit: int              = Field(default=20, ge=1, le=100)
+
+
+class FederationSyncRequest(BaseModel):
+    peer_url: Optional[str] = None
 
 
 # --- Nodeus (Product Facades) ---
@@ -217,6 +234,13 @@ def _init_db():
             operator      TEXT NOT NULL DEFAULT '',
             registered_at INTEGER NOT NULL,
             last_seen     INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS peer_sync_state (
+            node_url   TEXT PRIMARY KEY,
+            cursor     INTEGER NOT NULL DEFAULT 0,
+            last_sync  INTEGER,
+            last_error TEXT
         );
 
         CREATE TABLE IF NOT EXISTS api_keys (
@@ -363,10 +387,33 @@ def _validate_admin_key(api_key: str = Depends(_api_key_header)) -> str:
 # APP
 # ═══════════════════════════════════════════════════
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize runtime state for both `python node.py` and `uvicorn node:app`."""
+    _require_operator()
+    _boot_admin_key()
+    _init_db()
+
+    federation_task = None
+    if FEDERATION_ENABLED:
+        federation_task = asyncio.create_task(_federation_loop())
+
+    try:
+        yield
+    finally:
+        if federation_task:
+            federation_task.cancel()
+            try:
+                await federation_task
+            except asyncio.CancelledError:
+                pass
+
+
 app = FastAPI(
     title="ALEPH Node",
     description="Autonomous Agent Knowledge Network — Protocol v0.1",
     version=ALEPH_VERSION,
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url=None,
 )
@@ -890,20 +937,285 @@ def search_peers(req: PeerSearchRequest):
     return {"peers": results, "total": len(results)}
 
 
+# ── Federation ─────────────────────────────────────────────────
+
+def _normalize_peer_url(value: str) -> str:
+    value = value.strip().rstrip("/")
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("peer_url must be an absolute http(s) URL")
+    return value
+
+
+def _federation_targets() -> list[str]:
+    targets = list(SEED_PEERS)
+    with _db() as conn:
+        targets.extend(r["node_url"] for r in conn.execute("SELECT node_url FROM peers").fetchall())
+
+    seen = set()
+    normalized = []
+    self_url = NODE_URL.rstrip("/")
+    for raw in targets:
+        try:
+            url = _normalize_peer_url(raw)
+        except ValueError:
+            continue
+        if url == self_url or url in seen:
+            continue
+        seen.add(url)
+        normalized.append(url)
+    return normalized
+
+
+@app.get("/federation/export", tags=["Federation"])
+def federation_export(after_seq: int = 0, limit: int = FEDERATION_BATCH):
+    """Export public ALEPH chunks for explicitly configured peer synchronization."""
+    if not FEDERATION_ENABLED:
+        raise HTTPException(status_code=404, detail="Federation is disabled on this node.")
+
+    limit = min(1000, max(1, limit))
+    after_seq = max(0, after_seq)
+
+    with _db() as conn:
+        rows = conn.execute(
+            """SELECT rowid AS seq, * FROM chunks
+               WHERE rowid > ?
+                 AND EXISTS (
+                     SELECT 1 FROM json_each(chunks.tags)
+                     WHERE json_each.value = ?
+                 )
+               ORDER BY rowid ASC LIMIT ?""",
+            (after_seq, FEDERATION_EXPORT_TAG, limit),
+        ).fetchall()
+
+    chunks = []
+    for r in rows:
+        chunks.append({
+            "seq": r["seq"],
+            "chunk_id": r["chunk_id"],
+            "agent_id": r["agent_id"],
+            "type": r["type"],
+            "content": r["content"],
+            "tags": json.loads(r["tags"]),
+            "provenance": json.loads(r["provenance"]),
+            "version": r["version"],
+            "parent_chunk_id": r["parent_chunk_id"],
+            "deposited_at": r["deposited_at"],
+        })
+
+    next_cursor = chunks[-1]["seq"] if chunks else after_seq
+    return {
+        "node_id": NODE_ID,
+        "chunks": chunks,
+        "next_cursor": next_cursor,
+        "has_more": len(chunks) == limit,
+    }
+
+
+def _store_federated_chunk(conn: sqlite3.Connection, chunk: dict, peer_url: str) -> bool:
+    required = {"chunk_id", "agent_id", "type", "content", "tags", "provenance", "version", "deposited_at"}
+    if not required.issubset(chunk):
+        return False
+
+    exists = conn.execute(
+        "SELECT 1 FROM chunks WHERE chunk_id = ? AND version = ?",
+        (chunk["chunk_id"], int(chunk["version"])),
+    ).fetchone()
+    if exists:
+        return False
+
+    tags = chunk["tags"] if isinstance(chunk["tags"], list) else []
+    provenance = chunk["provenance"] if isinstance(chunk["provenance"], dict) else {}
+    provenance = dict(provenance)
+    provenance.setdefault("federated_from", peer_url)
+
+    conn.execute(
+        """INSERT INTO chunks
+           (chunk_id, agent_id, type, content, tags, provenance, version, parent_chunk_id, deposited_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            str(chunk["chunk_id"]),
+            str(chunk["agent_id"]),
+            str(chunk["type"]),
+            str(chunk["content"]),
+            json.dumps(tags),
+            json.dumps(provenance),
+            int(chunk["version"]),
+            chunk.get("parent_chunk_id"),
+            int(chunk["deposited_at"]),
+        ),
+    )
+    rowid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.execute(
+        "INSERT INTO chunks_fts (rowid, content, tags) VALUES (?, ?, ?)",
+        (rowid, str(chunk["content"]), " ".join(str(t) for t in tags)),
+    )
+    return True
+
+
+async def _sync_peer(peer_url: str) -> dict:
+    peer_url = _normalize_peer_url(peer_url)
+    if peer_url == NODE_URL.rstrip("/"):
+        return {"peer_url": peer_url, "status": "skipped-self", "imported": 0}
+
+    with _db() as conn:
+        state = conn.execute(
+            "SELECT cursor FROM peer_sync_state WHERE node_url = ?",
+            (peer_url,),
+        ).fetchone()
+        cursor = int(state["cursor"]) if state else 0
+
+    imported = 0
+    pages = 0
+    remote_node_id = ""
+    try:
+        timeout = httpx.Timeout(10.0, connect=5.0)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            manifest_resp = await client.get(f"{peer_url}/.well-known/agent-library.json")
+            manifest_resp.raise_for_status()
+            manifest = manifest_resp.json()
+            remote_node_id = str(manifest.get("node_id", ""))
+            if not remote_node_id:
+                raise ValueError("peer manifest is missing node_id")
+
+            while pages < 20:
+                response = await client.get(
+                    f"{peer_url}/federation/export",
+                    params={"after_seq": cursor, "limit": FEDERATION_BATCH},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                chunks = payload.get("chunks", [])
+                next_cursor = int(payload.get("next_cursor", cursor))
+
+                with _db() as conn:
+                    for chunk in chunks:
+                        if _store_federated_chunk(conn, chunk, peer_url):
+                            imported += 1
+
+                    now = int(time.time())
+                    caps = manifest.get("capabilities", [])
+                    operator = str(manifest.get("operator", ""))
+                    existing = conn.execute(
+                        "SELECT 1 FROM peers WHERE node_id = ?",
+                        (remote_node_id,),
+                    ).fetchone()
+                    if existing:
+                        conn.execute(
+                            "UPDATE peers SET node_url = ?, capabilities = ?, operator = ?, last_seen = ? WHERE node_id = ?",
+                            (peer_url, json.dumps(caps), operator, now, remote_node_id),
+                        )
+                    else:
+                        conn.execute(
+                            """INSERT INTO peers (node_id, node_url, capabilities, operator, registered_at, last_seen)
+                               VALUES (?, ?, ?, ?, ?, ?)""",
+                            (remote_node_id, peer_url, json.dumps(caps), operator, now, now),
+                        )
+
+                    conn.execute(
+                        """INSERT INTO peer_sync_state (node_url, cursor, last_sync, last_error)
+                           VALUES (?, ?, ?, NULL)
+                           ON CONFLICT(node_url) DO UPDATE SET
+                               cursor = excluded.cursor,
+                               last_sync = excluded.last_sync,
+                               last_error = NULL""",
+                        (peer_url, next_cursor, now),
+                    )
+
+                cursor = next_cursor
+                pages += 1
+                if not payload.get("has_more") or not chunks:
+                    break
+
+        return {
+            "peer_url": peer_url,
+            "node_id": remote_node_id,
+            "status": "ok",
+            "imported": imported,
+            "cursor": cursor,
+            "pages": pages,
+        }
+    except Exception as exc:
+        with _db() as conn:
+            conn.execute(
+                """INSERT INTO peer_sync_state (node_url, cursor, last_sync, last_error)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(node_url) DO UPDATE SET
+                       last_sync = excluded.last_sync,
+                       last_error = excluded.last_error""",
+                (peer_url, cursor, int(time.time()), str(exc)[:500]),
+            )
+        return {
+            "peer_url": peer_url,
+            "node_id": remote_node_id,
+            "status": "error",
+            "imported": imported,
+            "cursor": cursor,
+            "error": str(exc),
+        }
+
+
+async def _sync_all_configured_peers() -> list[dict]:
+    results = []
+    for peer_url in _federation_targets():
+        results.append(await _sync_peer(peer_url))
+    return results
+
+
+async def _federation_loop() -> None:
+    # Startup jitter is intentionally fixed and short: nodes only contact peers
+    # explicitly configured by the operator.
+    await asyncio.sleep(2)
+    while True:
+        await _sync_all_configured_peers()
+        await asyncio.sleep(FEDERATION_INTERVAL)
+
+
+@app.post("/federation/sync", tags=["Federation"])
+async def federation_sync(req: FederationSyncRequest, _: str = Depends(_validate_admin_key)):
+    """Manually synchronize one explicit peer or every configured peer."""
+    if not FEDERATION_ENABLED:
+        raise HTTPException(status_code=409, detail="Federation is disabled on this node.")
+
+    if req.peer_url:
+        try:
+            target = _normalize_peer_url(req.peer_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"results": [await _sync_peer(target)]}
+
+    return {"results": await _sync_all_configured_peers()}
+
+
+@app.get("/federation/status", tags=["Federation"])
+def federation_status(_: str = Depends(_validate_admin_key)):
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT node_url, cursor, last_sync, last_error FROM peer_sync_state ORDER BY node_url"
+        ).fetchall()
+    return {
+        "enabled": FEDERATION_ENABLED,
+        "interval_seconds": FEDERATION_INTERVAL,
+        "seed_peers": SEED_PEERS,
+        "export_tag": FEDERATION_EXPORT_TAG,
+        "peers": [dict(r) for r in rows],
+    }
+
+
 # ═══════════════════════════════════════════════════
 # V1 ALIASES  (compatibility with existing frontend + MCP)
 # ═══════════════════════════════════════════════════
 
 @app.post("/aleph/v1/query")
-def v1_query(req: SearchRequest):
-    """Alias for POST /memories/search — public."""
-    return search(req)
+def v1_query(req: MemorySearch, caller: str = Depends(_validate_api_key)):
+    """Alias for POST /memories/search — requires X-API-Key."""
+    return search_nodeus(req, caller)
 
 
 @app.post("/aleph/v1/deposit")
-def v1_deposit(req: DepositRequest, caller: str = Depends(_validate_api_key)):
+def v1_deposit(req: MemoryDeposit, caller: str = Depends(_validate_api_key)):
     """Alias for POST /memories — requires X-API-Key."""
-    return deposit(req, caller)
+    return deposit_nodeus(req, caller)
 
 
 @app.get("/aleph/v1/peers")
@@ -984,10 +1296,6 @@ def root():
 # ═══════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    _require_operator()
-    _init_db()
-    _boot_admin_key()
-
     import uvicorn
 
     print(f"""

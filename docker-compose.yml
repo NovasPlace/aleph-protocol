@@ -14,3 +14,6 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - ALEPH_DATA_DIR=/home/aleph/data
+      - ALEPH_PORT=8801
+      - ALEPH_NODE_URL=${ALEPH_NODE_URL:-http://localhost:8801}
