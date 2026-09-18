@@ -77,6 +77,7 @@ On each node, set its public HTTPS address and one or more comma-separated seed 
 ALEPH_NODE_URL=https://node-a.example.com
 ALEPH_FEDERATION_ENABLED=true
 ALEPH_FEDERATION_INTERVAL=60
+ALEPH_FEDERATION_EXPORT_TAG=federate
 ALEPH_SEED_PEERS=https://node-b.example.com,https://node-c.example.com
 ```
 
@@ -95,5 +96,7 @@ Useful federation endpoints:
 | `GET` | `/federation/status` | Admin view of cursors, last syncs, and errors |
 
 To force a one-off sync with a specific peer, call `POST /federation/sync` with the administrative seed as `X-API-Key` and JSON such as `{"peer_url":"https://node-b.example.com"}`.
+
+Only memories carrying the configured export tag (default: `federate`) are exported. This keeps ordinary local Nodeus memories out of the mesh unless the depositing agent explicitly marks them for federation.
 
 Imported chunks preserve the original agent identity and provenance and do **not** award local reputation merely for replication.
