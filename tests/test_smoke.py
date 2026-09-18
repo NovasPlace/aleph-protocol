@@ -37,7 +37,7 @@ def test_nodeus_smoke():
             json={
                 "type": "factual",
                 "content": "ALEPH CI federation smoke memory",
-                "tags": ["ci", "federation"],
+                "tags": ["ci", "federation", "federate"],
                 "source": "ci",
                 "confidence": 1.0,
             },
