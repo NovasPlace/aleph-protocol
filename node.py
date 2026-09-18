@@ -75,6 +75,7 @@ CAPABILITIES   = ["deposit", "query", "conflict", "standing", "peers", "keys", "
 FEDERATION_ENABLED = os.getenv("ALEPH_FEDERATION_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 FEDERATION_INTERVAL = max(15, int(os.getenv("ALEPH_FEDERATION_INTERVAL", "60")))
 FEDERATION_BATCH = min(1000, max(1, int(os.getenv("ALEPH_FEDERATION_BATCH", "200"))))
+FEDERATION_EXPORT_TAG = os.getenv("ALEPH_FEDERATION_EXPORT_TAG", "federate").strip() or "federate"
 SEED_PEERS = [
     p.strip().rstrip("/")
     for p in os.getenv("ALEPH_SEED_PEERS", "").split(",")
@@ -977,8 +978,14 @@ def federation_export(after_seq: int = 0, limit: int = FEDERATION_BATCH):
 
     with _db() as conn:
         rows = conn.execute(
-            "SELECT rowid AS seq, * FROM chunks WHERE rowid > ? ORDER BY rowid ASC LIMIT ?",
-            (after_seq, limit),
+            """SELECT rowid AS seq, * FROM chunks
+               WHERE rowid > ?
+                 AND EXISTS (
+                     SELECT 1 FROM json_each(chunks.tags)
+                     WHERE json_each.value = ?
+                 )
+               ORDER BY rowid ASC LIMIT ?""",
+            (after_seq, FEDERATION_EXPORT_TAG, limit),
         ).fetchall()
 
     chunks = []
@@ -1190,6 +1197,7 @@ def federation_status(_: str = Depends(_validate_admin_key)):
         "enabled": FEDERATION_ENABLED,
         "interval_seconds": FEDERATION_INTERVAL,
         "seed_peers": SEED_PEERS,
+        "export_tag": FEDERATION_EXPORT_TAG,
         "peers": [dict(r) for r in rows],
     }
 
