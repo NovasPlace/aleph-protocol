@@ -21,11 +21,17 @@ fi
 if [ -z "$ALEPH_ROOT_SEED" ] || [ "$ALEPH_ROOT_SEED" = "default_seed_replace_me" ]; then
     echo "[*] Generating cryptographically secure ROOT_SEED..."
     export ALEPH_ROOT_SEED=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9_=')
-    echo "ALEPH_ROOT_SEED=$ALEPH_ROOT_SEED" > .env
-    echo "DB_PATH=/home/aleph/data/aleph.db" >> .env
+    grep -v '^ALEPH_ROOT_SEED=' .env 2>/dev/null > .env.tmp || true
+    mv .env.tmp .env 2>/dev/null || touch .env
+    echo "ALEPH_ROOT_SEED=$ALEPH_ROOT_SEED" >> .env
 else
     echo "[*] ROOT_SEED already exists. Preserving config..."
 fi
+
+grep -q '^ALEPH_OPERATOR=' .env || echo "ALEPH_OPERATOR=${ALEPH_OPERATOR:-$(whoami)}" >> .env
+grep -q '^ALEPH_NODE_URL=' .env || echo "ALEPH_NODE_URL=${ALEPH_NODE_URL:-http://localhost:8801}" >> .env
+grep -q '^ALEPH_DATA_DIR=' .env || echo "ALEPH_DATA_DIR=/home/aleph/data" >> .env
+grep -q '^DB_PATH=' .env || echo "DB_PATH=/home/aleph/data/aleph.db" >> .env
 
 echo "[*] Building and starting Nodeus Docker container..."
 docker-compose up --build -d
