@@ -32,8 +32,9 @@ grep -q '^ALEPH_OPERATOR=' .env || echo "ALEPH_OPERATOR=${ALEPH_OPERATOR:-$(whoa
 grep -q '^ALEPH_NODE_URL=' .env || echo "ALEPH_NODE_URL=${ALEPH_NODE_URL:-http://localhost:8801}" >> .env
 grep -q '^ALEPH_DATA_DIR=' .env || echo "ALEPH_DATA_DIR=/home/aleph/data" >> .env
 grep -q '^DB_PATH=' .env || echo "DB_PATH=/home/aleph/data/aleph.db" >> .env
-grep -q '^ALEPH_FEDERATION_ENABLED=' .env || echo "ALEPH_FEDERATION_ENABLED=true" >> .env
+grep -q '^ALEPH_FEDERATION_ENABLED=' .env || echo "ALEPH_FEDERATION_ENABLED=false" >> .env
 grep -q '^ALEPH_FEDERATION_INTERVAL=' .env || echo "ALEPH_FEDERATION_INTERVAL=60" >> .env
+grep -q '^ALEPH_FEDERATION_EXPORT_TAG=' .env || echo "ALEPH_FEDERATION_EXPORT_TAG=federate" >> .env
 grep -q '^ALEPH_SEED_PEERS=' .env || echo "ALEPH_SEED_PEERS=" >> .env
 
 echo "[*] Building and starting Nodeus Docker container..."
@@ -51,7 +52,7 @@ echo "==========================================================="
 echo "✅ Nodeus Engine Deployed Successfully!"
 echo "==========================================================="
 echo "Network Context:"
-echo " → Federation is enabled; only explicitly configured peers are contacted."
+echo " → Federation support is installed; enable it explicitly in .env when ready."
 echo " → The node is bound strictly to: 127.0.0.1:8801"
 echo " → You MUST configure a reverse proxy (Nginx/Caddy) with HTTPS to expose it."
 echo ""
