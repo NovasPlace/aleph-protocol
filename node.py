@@ -40,7 +40,7 @@ import sqlite3
 import sys
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from pathlib import Path
 import hmac
 
@@ -61,7 +61,7 @@ NODE_LABEL = os.getenv("ALEPH_LABEL",   "ALEPH Community Node")
 OPERATOR  = os.getenv("ALEPH_OPERATOR", "")
 PORT      = int(os.getenv("ALEPH_PORT", "8765"))
 DATA_DIR  = Path(os.getenv("ALEPH_DATA_DIR", "/data"))
-DB_PATH   = DATA_DIR / "aleph.db"
+DB_PATH   = Path(os.getenv("DB_PATH", str(DATA_DIR / "aleph.db")))
 
 ROOT_SEED = os.getenv("ALEPH_ROOT_SEED")
 
@@ -363,10 +363,20 @@ def _validate_admin_key(api_key: str = Depends(_api_key_header)) -> str:
 # APP
 # ═══════════════════════════════════════════════════
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize runtime state for both `python node.py` and `uvicorn node:app`."""
+    _require_operator()
+    _boot_admin_key()
+    _init_db()
+    yield
+
+
 app = FastAPI(
     title="ALEPH Node",
     description="Autonomous Agent Knowledge Network — Protocol v0.1",
     version=ALEPH_VERSION,
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url=None,
 )
@@ -895,15 +905,15 @@ def search_peers(req: PeerSearchRequest):
 # ═══════════════════════════════════════════════════
 
 @app.post("/aleph/v1/query")
-def v1_query(req: SearchRequest):
-    """Alias for POST /memories/search — public."""
-    return search(req)
+def v1_query(req: MemorySearch, caller: str = Depends(_validate_api_key)):
+    """Alias for POST /memories/search — requires X-API-Key."""
+    return search_nodeus(req, caller)
 
 
 @app.post("/aleph/v1/deposit")
-def v1_deposit(req: DepositRequest, caller: str = Depends(_validate_api_key)):
+def v1_deposit(req: MemoryDeposit, caller: str = Depends(_validate_api_key)):
     """Alias for POST /memories — requires X-API-Key."""
-    return deposit(req, caller)
+    return deposit_nodeus(req, caller)
 
 
 @app.get("/aleph/v1/peers")
@@ -984,10 +994,6 @@ def root():
 # ═══════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    _require_operator()
-    _init_db()
-    _boot_admin_key()
-
     import uvicorn
 
     print(f"""
